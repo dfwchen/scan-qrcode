@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>物料振动盘扫码匹配</title>
+<title>STH_物料/振动盘匹配</title>
 <style>
 *{box-sizing:border-box;}
 body{text-align:center;padding:20px;background:#f0f2f5;font-family:'Segoe UI',Roboto,Arial,sans-serif;margin:0;}
@@ -157,7 +157,7 @@ button{flex:1;padding:14px;font-size:16px;font-weight:bold;border:none;border-ra
 </head>
 <body>
 <div class="container">
-  <h2>📦 物料振动盘匹配系统</h2>
+  <h2>📦 STH_物料/振动盘匹配</h2>
   <div class="sub">扫码比对 | 一致放行</div>
 
   <div id="reader" style="position:relative;">
@@ -172,11 +172,11 @@ button{flex:1;padding:14px;font-size:16px;font-weight:bold;border:none;border-ra
 
   <div class="scan-header">
     <div class="scan-item">
-      <div class="scan-label">📦 物料码</div>
+      <div class="scan-label">📦 物料</div>
       <div class="scan-value" id="materialValue">等待扫码</div>
     </div>
     <div class="scan-item">
-      <div class="scan-label">⚙️ 振动盘码</div>
+      <div class="scan-label">⚙️ 振动盘</div>
       <div class="scan-value" id="vibValue">等待扫码</div>
     </div>
   </div>
@@ -199,11 +199,10 @@ button{flex:1;padding:14px;font-size:16px;font-weight:bold;border:none;border-ra
   </div>
   <div class="guide">
     💡 使用说明：<br>
-    1️⃣ 点击「开始扫码」，对准第一个二维码（物料码）<br>
-    2️⃣ 自动识别后（提取PE/PD前缀），再对准第二个二维码（振动盘码，保持原样）<br>
-    3️⃣ 两码一致 → 🟢 绿色闪烁提示2秒，自动重置准备下一组<br>
-    4️⃣ 两码不一致 → 🔴 红色警告（声音+闪烁），需手动重置<br>
-    5️⃣ 扫码后有2秒冷却时间，避免重复扫码
+    1️⃣ 点击「开始扫码」，对准物料二维码<br>
+    2️⃣ 识别后，再对准振动盘二维码<br>
+    3️⃣ 两码一致 → 🟢 绿色闪烁提示<br>
+    4️⃣ 两码不一致 → 🔴 红色警告，需手动重置<br>
   </div>
 </div>
 
@@ -473,7 +472,7 @@ function checkMatch() {
     if (isSame) {
         // ✅ 匹配成功 - 绿色闪烁2秒
         resultCard.className = "result-card success";
-        resultCard.innerHTML = "✅ 匹配成功！物料与振动盘一致，可以投料 🎉";
+        resultCard.innerHTML = "✅ 物料与振动盘一致，可以投料 🎉";
         statusText.innerText = "✅ 匹配成功！自动重置，准备下一组";
         playBeep();
         
@@ -487,7 +486,7 @@ function checkMatch() {
     } else {
         // ❌ 不匹配
         resultCard.className = "result-card error";
-        resultCard.innerHTML = `❌ 匹配失败，禁止投料！<br><small>物料码：${materialCode}<br>振动盘码：${vibCode}<br>两码不一致</small><br>请点击「手动重置」后重新扫码`;
+        resultCard.innerHTML = `❌ 禁止投料！<br><small>物料：${materialCode}<br>振动盘：${vibCode}<br>两码不一致</small><br>点击「手动重置」后重扫`;
         statusText.innerText = "❌ 匹配失败，请手动重置后重试";
         statusDot.className = "status-dot stop";
         
@@ -572,8 +571,8 @@ function onScanSuccess(decodedText) {
         updateUI();
         
         resultCard.className = "result-card waiting";
-        resultCard.innerHTML = `📦 已扫物料码：${materialCode}<br>⚙️ 请继续扫描振动盘码`;
-        statusText.innerText = "已扫物料码，请对准振动盘码扫描";
+        resultCard.innerHTML = `📦 已扫物料：${materialCode}<br>⚙️ 请继续扫描振动盘`;
+        statusText.innerText = "已扫物料，请对准振动盘扫";
         playBeep();
         
     } else if (isWaitingForVib && vibCode === "") {
