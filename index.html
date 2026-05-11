@@ -5,137 +5,201 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>扫码匹配</title>
 <style>
-body{text-align:center;padding:20px;background:#f5f5f5;}
+body{text-align:center;padding:20px;background:#f5f5f5;font-family:Arial,sans-serif;}
 #video{width:100%;max-width:400px;border:2px solid #007aff;border-radius:10px;background:#000;margin:0 auto 15px;}
-button{width:100%;max-width:400px;padding:14px;margin:8px 0;font-size:16px;background:#007aff;color:#fff;border:none;border-radius:8px;}
-.info{background:#fff;padding:15px;border-radius:10px;margin-bottom:15px;}
-.result{padding:15px;border-radius:10px;margin:15px 0;font-size:18px;}
-.ok{background:#e8f5e9;color:#2e7d32}
-.no{background:#ffebee;color:#c62828}
+button{width:100%;max-width:400px;padding:14px;margin:8px 0;font-size:16px;background:#007aff;color:#fff;border:none;border-radius:8px;cursor:pointer;}
+button:hover{background:#0056b3;}
+.info{background:#fff;padding:15px;border-radius:10px;margin-bottom:15px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+.result{padding:15px;border-radius:10px;margin:15px 0;font-size:18px;font-weight:bold;}
+.ok{background:#e8f5e9;color:#2e7d32;border:1px solid #2e7d32;}
+.no{background:#ffebee;color:#c62828;border:1px solid #c62828;}
+.status{color:#666;font-size:14px;margin-top:10px;}
 </style>
 </head>
 <body>
 
 <h2>物料振动盘扫码匹配</h2>
-<video id="video" autoplay playsinline muted></video>
+<div id="reader" style="width:100%;max-width:400px;margin:0 auto;"></div>
 
 <div class="info">
-  <p>物料码：<span id="m">未扫描</span></p>
-  <p>振动盘：<span id="v">未扫描</span></p>
+  <p>📦 物料码：<span id="m" style="font-weight:bold;color:#007aff;">未扫描</span></p>
+  <p>⚙️ 振动盘码：<span id="v" style="font-weight:bold;color:#007aff;">未扫描</span></p>
 </div>
 
 <div id="result" class="result">等待扫码</div>
 
-<button onclick="openCamera()">打开摄像头</button>
-<button onclick="scanOnce()">点击扫码识别</button>
-<button onclick="resetAll()">重置</button>
+<button onclick="startScan()">📷 开始扫码</button>
+<button onclick="stopScan()">⏹️ 停止扫码</button>
+<button onclick="resetAll()">🔄 A重置</button>
 
-<script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+<div class="status" id="status">状态：等待启动</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
 let material = "";
 let vib = "";
 let isMaterial = true;
-let stream = null;
-let v = document.getElementById("video");
+let html5QrCode = null;
+let isScanning = false;
 
-async function openCamera(){
-  if(stream) stream.getTracks().forEach(t=>t.stop());
-  stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "environment" }
-  });
-  v.srcObject = stream;
+async function startScan() {
+    if (isScanning) {
+        alert("已经在扫码中");
+        return;
+    }
+    
+    document.getElementById("status").innerText = "状态：正在初始化摄像头...";
+    document.getElementById("status").style.color = "#ff9800";
+    
+    html5QrCode = new Html5Qrcode("reader");
+    
+    try {
+        await html5QrCode.start(
+            { facingMode: "environment" },  // 后置摄像头
+            {
+                fps: 10,                     // 每秒识别10次
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0
+            },
+            onScanSuccess,
+            onScanError
+        );
+        isScanning = true;
+        document.getElementById("status").innerText = "状态：扫码中，对准二维码即可自动识别";
+        document.getElementById("status").style.color = "#4caf50";
+    } catch (err) {
+        console.error("启动失败:", err);
+        document.getElementById("status").innerText = "状态：启动失败，请检查摄像头权限";
+        document.getElementById("status").style.color = "#f44336";
+        alert("无法启动摄像头，请确保已授权摄像头权限");
+    }
 }
 
-function scanOnce(){
-  if(!stream) { alert("请先打开摄像头"); return; }
-  if(v.videoWidth === 0 || v.videoHeight === 0) { 
-    alert("视频流未就绪，请稍后再试");
-    return;
-  }
-  
-  let canvas = document.createElement("canvas");
-  let ctx = canvas.getContext("2d");
-  canvas.width = v.videoWidth;
-  canvas.height = v.videoHeight;
-  ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-  
-  // 修正：Quagga.decodeSingle 的正确配置格式
-  Quagga.decodeSingle({
-    src: canvas.toDataURL('image/jpeg'),  // 需要转换为 dataURL
-    numOfWorkers: 0,
-    inputStream: {
-      size: { width: canvas.width, height: canvas.height }
-    },
-    decoder: {
-      readers: [
-        "code_128_reader",
-        "ean_reader",
-        "ean_8_reader",
-        "code_39_reader",
-        "code_93_reader",
-        "codabar_reader",
-        "upc_reader",
-        "upc_e_reader",
-        "qr_reader"
-      ]
+function onScanSuccess(decodedText, decodedResult) {
+    // 识别成功后自动处理
+    handleCode(decodedText);
+    
+    // 如果两个码都扫完了，可以自动停止
+    if (material && vib) {
+        setTimeout(() => {
+            stopScan();
+        }, 500);
     }
-  }, function(result) {
-    if(result && result.codeResult) {
-      handleCode(result.codeResult.code);
-    } else {
-      alert("未识别到条码/二维码，请对准后重试");
+}
+
+function onScanError(errorMessage) {
+    // 错误回调，不需要处理，只是持续扫码
+    // console.log(errorMessage);
+}
+
+function stopScan() {
+    if (html5QrCode && isScanning) {
+        html5QrCode.stop().then(() => {
+            isScanning = false;
+            document.getElementById("status").innerText = "状态：已停止扫码";
+            document.getElementById("status").style.color = "#666";
+        }).catch(err => {
+            console.error("停止失败:", err);
+        });
     }
-  });
 }
 
 function handleCode(txt){
-  // 扫码成功后不关闭摄像头，方便连续扫码
-  let s = txt.trim();
-  let code = s;
-  let pd = s.indexOf("PD");
-  let pe = s.indexOf("PE");
-  if(pd >= 0 || pe >= 0) code = s.substring(Math.max(pd, pe));
-  
-  if(isMaterial){
-    material = code;
-    document.getElementById("m").innerText = code;
-    isMaterial = false;
-  } else {
-    vib = code;
-    document.getElementById("v").innerText = code;
-    isMaterial = true;
-  }
-  check();
+    let s = txt.trim();
+    let code = s;
+    
+    // 提取 PD 或 PE 开头的码
+    let pd = s.indexOf("PD");
+    let pe = s.indexOf("PE");
+    if(pd >= 0) code = s.substring(pd);
+    if(pe >= 0) code = s.substring(pe);
+    
+    // 去除非字母数字字符（可选）
+    code = code.replace(/\s/g, '');
+    
+    if(isMaterial){
+        if(material === "") {
+            material = code;
+            document.getElementById("m").innerText = code;
+            isMaterial = false;
+            document.getElementById("status").innerText = `状态：已扫物料码，请扫振动盘码`;
+            playBeep();
+        } else {
+            // 已经有物料码了，防止重复扫描
+            return;
+        }
+    } else {
+        if(vib === "") {
+            vib = code;
+            document.getElementById("v").innerText = code;
+            isMaterial = true;
+            document.getElementById("status").innerText = `状态：已扫振动盘码，检查匹配中`;
+            playBeep();
+        } else {
+            return;
+        }
+    }
+    check();
+}
+
+function playBeep() {
+    // 简单的提示音（可选）
+    try {
+        let audio = new Audio('data:audio/wav;base64,U3RlYWx0aCBzb3VuZA==');
+        audio.play().catch(e => console.log("无法播放提示音"));
+    } catch(e) {}
+    
+    // 振动提示（移动端）
+    if (navigator.vibrate) {
+        navigator.vibrate(200);
+    }
 }
 
 function check(){
-  let allow = ["PD19191-2","PE10529-1","PE10526-1","PE10672"];
-  let r = document.getElementById("result");
-  if(!material || !vib){ 
-    r.innerText = isMaterial ? "请扫物料码" : "请扫振动盘码";
-    r.className = "result"; 
-    return; 
-  }
-  let matched = (material === vib) && allow.includes(material);
-  if(matched){ 
-    r.innerText = "✅ 匹配成功，可以投料"; 
-    r.className = "result ok"; 
-  } else { 
-    r.innerText = "❌ 不匹配，禁止投料"; 
-    r.className = "result no"; 
-  }
+    let allow = ["PD19191-2","PE10529-1","PE10526-1","PE10672"];
+    let r = document.getElementById("result");
+    
+    if(!material || !vib){ 
+        r.innerText = material ? "⚙️ 请扫振动盘码" : "📦 请扫物料码";
+        r.className = "result"; 
+        return; 
+    }
+    
+    let matched = (material === vib) && allow.includes(material);
+    if(matched){ 
+        r.innerText = "✅ 匹配成功，可以投料"; 
+        r.className = "result ok"; 
+        // 匹配成功后自动重置，准备下一组（可选）
+        // setTimeout(() => resetAll(), 2000);
+    } else { 
+        r.innerText = "❌ 不匹配，禁止投料\n物料：" + material + " ≠ 振动盘：" + vib; 
+        r.className = "result no"; 
+    }
 }
 
 function resetAll(){
-  // 不清空摄像头流，只是重置状态
-  material = "";
-  vib = "";
-  isMaterial = true;
-  document.getElementById("m").innerText = "未扫描";
-  document.getElementById("v").innerText = "未扫描";
-  document.getElementById("result").innerText = "等待扫码";
-  document.getElementById("result").className = "result";
+    material = "";
+    vib = "";
+    isMaterial = true;
+    document.getElementById("m").innerText = "未扫描";
+    document.getElementById("v").innerText = "未扫描";
+    document.getElementById("result").innerHTML = "等待扫码";
+    document.getElementById("result").className = "result";
+    document.getElementById("status").innerHTML = "状态：已重置，继续扫码";
+    document.getElementById("status").style.color = "#4caf50";
+    
+    // 如果还在扫码中，继续扫下一组
+    if(!isScanning) {
+        startScan();
+    }
 }
+
+// 页面关闭前停止扫码
+window.addEventListener('beforeunload', () => {
+    if (html5QrCode && isScanning) {
+        html5QrCode.stop();
+    }
+});
 </script>
 </body>
 </html>
