@@ -30,6 +30,7 @@ button{width:100%;max-width:400px;padding:14px;margin:8px 0;font-size:16px;backg
 <button onclick="scanOnce()">点击扫码识别</button>
 <button onclick="resetAll()">重置</button>
 
+<script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
 <script>
 let material = "";
 let vib = "";
@@ -47,42 +48,59 @@ async function openCamera(){
 
 function scanOnce(){
   if(!stream) { alert("请先打开摄像头"); return; }
+  if(v.videoWidth === 0 || v.videoHeight === 0) { 
+    alert("视频流未就绪，请稍后再试");
+    return;
+  }
   
   let canvas = document.createElement("canvas");
   let ctx = canvas.getContext("2d");
   canvas.width = v.videoWidth;
   canvas.height = v.videoHeight;
-  ctx.drawImage(v,0,0);
+  ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
   
-  // 调用浏览器原生扫码接口（最稳）
+  // 修正：Quagga.decodeSingle 的正确配置格式
   Quagga.decodeSingle({
-    src: canvas,
+    src: canvas.toDataURL('image/jpeg'),  // 需要转换为 dataURL
     numOfWorkers: 0,
-    inputStream: { area: { top: "0%", left: "0%", right: "100%", bottom: "100%" } },
-    decoder: { readers: ["code_128_reader","ean_reader","qr_reader"] }
-  }, function(result){
-    if(result && result.codeResult){
-      ok(result.codeResult.code);
-    }else{
-      alert("未识别到二维码，请对准再点");
+    inputStream: {
+      size: { width: canvas.width, height: canvas.height }
+    },
+    decoder: {
+      readers: [
+        "code_128_reader",
+        "ean_reader",
+        "ean_8_reader",
+        "code_39_reader",
+        "code_93_reader",
+        "codabar_reader",
+        "upc_reader",
+        "upc_e_reader",
+        "qr_reader"
+      ]
+    }
+  }, function(result) {
+    if(result && result.codeResult) {
+      handleCode(result.codeResult.code);
+    } else {
+      alert("未识别到条码/二维码，请对准后重试");
     }
   });
 }
 
-function ok(txt){
-  stream.getTracks().forEach(t=>t.stop());
-  stream = null;
+function handleCode(txt){
+  // 扫码成功后不关闭摄像头，方便连续扫码
   let s = txt.trim();
   let code = s;
   let pd = s.indexOf("PD");
   let pe = s.indexOf("PE");
-  if(pd>=0||pe>=0) code = s.substring(Math.max(pd,pe));
+  if(pd >= 0 || pe >= 0) code = s.substring(Math.max(pd, pe));
   
   if(isMaterial){
     material = code;
     document.getElementById("m").innerText = code;
     isMaterial = false;
-  }else{
+  } else {
     vib = code;
     document.getElementById("v").innerText = code;
     isMaterial = true;
@@ -93,23 +111,31 @@ function ok(txt){
 function check(){
   let allow = ["PD19191-2","PE10529-1","PE10526-1","PE10672"];
   let r = document.getElementById("result");
-  if(!material || !vib){ r.innerText="请扫第二个码"; r.className="result"; return; }
-  let ok = (material===vib) && allow.includes(material);
-  if(ok){ r.innerText="✅ 匹配成功，可以投料"; r.className="result ok"; }
-  else{ r.innerText="❌ 不匹配，禁止投料"; r.className="result no"; }
+  if(!material || !vib){ 
+    r.innerText = isMaterial ? "请扫物料码" : "请扫振动盘码";
+    r.className = "result"; 
+    return; 
+  }
+  let matched = (material === vib) && allow.includes(material);
+  if(matched){ 
+    r.innerText = "✅ 匹配成功，可以投料"; 
+    r.className = "result ok"; 
+  } else { 
+    r.innerText = "❌ 不匹配，禁止投料"; 
+    r.className = "result no"; 
+  }
 }
 
 function resetAll(){
-  if(stream) stream.getTracks().forEach(t=>t.stop());
-  stream=null; material=""; vib=""; isMaterial=true;
-  document.getElementById("m").innerText="未扫描";
-  document.getElementById("v").innerText="未扫描";
-  document.getElementById("result").innerText="等待扫码";
-  document.getElementById("result").className="result";
+  // 不清空摄像头流，只是重置状态
+  material = "";
+  vib = "";
+  isMaterial = true;
+  document.getElementById("m").innerText = "未扫描";
+  document.getElementById("v").innerText = "未扫描";
+  document.getElementById("result").innerText = "等待扫码";
+  document.getElementById("result").className = "result";
 }
 </script>
-
-<!-- 唯一外部库，稳定不挂 -->
-<script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
 </body>
 </html>
