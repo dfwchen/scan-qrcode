@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>物料振动盘扫码匹配</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body {
+            font-family: "微软雅黑",sans-serif;
+            padding: 15px;
+            background: #f5f5f5;
+        }
+        .title {
+            font-size: 22px;
+            text-align: center;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        /* 摄像头放最上面 */
+        #video {
+            width: 100%;
+            max-width: 420px;
+            border: 2px solid #007aff;
+            border-radius: 10px;
+            display: block;
+            margin: 0 auto 15px;
+        }
+        .info-box {
+            background: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .info-item {
+            font-size: 17px;
+            margin: 8px 0;
+        }
+        .result {
+            font-size: 19px;
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .ok {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .no {
+            background: #ffebee;
+            color: #c62828;
+        }
+        button {
+            width: 100%;
+            max-width: 420px;
+            padding: 14px;
+            font-size: 17px;
+            border-radius: 8px;
+            border: none;
+            margin: 8px auto;
+            display: block;
+            background: #007aff;
+            color: #fff;
+        }
+        canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="title">物料振动盘扫码匹配</div>
+
+    <!-- 摄像头：最顶部 -->
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+
+    <!-- 中间信息区域 -->
+    <div class="info-box">
+        <div class="info-item">物料码：<span id="material">未扫描</span></div>
+        <div class="info-item">振动盘：<span id="vib">未扫描</span></div>
+    </div>
+
+    <div id="result" class="result">等待扫码匹配</div>
+
+    <!-- 按钮全部放最下面 -->
+    <button onclick="startScan(true)">扫描物料二维码</button>
+    <button onclick="startScan(false)">扫描振动盘二维码</button>
+    <button onclick="resetAll()">重置重新开始</button>
+
+<script>
+let materialCode = "";
+let vibCode = "";
+let isScanningMaterial = false;
+let stream = null;
+
+// 你的匹配清单
+const allowList = ["PD19191-2","PE10529-1","PE10526-1","PE10672"];
+
+function startScan(isMaterial){
+    isScanningMaterial = isMaterial;
+    openCamera();
+}
+
+// 打开后置摄像头
+function openCamera(){
+    const video = document.getElementById('video');
+    if(stream){
+        stopCamera();
+    }
+    navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width:480, height:480 }
+    }).then(s=>{
+        stream = s;
+        video.srcObject = s;
+        setTimeout(scanLoop,800);
+    }).catch(e=>{
+        alert("无法打开摄像头，请允许权限且必须HTTPS访问");
+    });
+}
+
+function scanLoop(){
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    if(video.readyState !== video.HAVE_ENOUGH_DATA){
+        setTimeout(scanLoop,300);
+        return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video,0,0);
+    const code = jsQR(ctx.getImageData(0,0,canvas.width,canvas.height),canvas.width,canvas.height);
+    if(code){
+        onScanOk(code.data);
+        return;
+    }
+    requestAnimationFrame(scanLoop);
+}
+
+function stopCamera(){
+    if(stream){
+        stream.getTracks().forEach(t=>t.stop());
+        stream = null;
+    }
+}
+
+function onScanOk(txt){
+    stopCamera();
+    let code = extractCode(txt.trim());
+    if(isScanningMaterial){
+        materialCode = code;
+        document.getElementById("material").innerText = materialCode;
+    }else{
+        vibCode = code;
+        document.getElementById("vib").innerText = vibCode;
+    }
+    checkMatch();
+}
+
+function extractCode(s){
+    let p1 = s.indexOf("PD");
+    let p2 = s.indexOf("PE");
+    let pos = Math.max(p1,p2);
+    return pos>=0 ? s.substring(pos) : s;
+}
+
+function checkMatch(){
+    let resDom = document.getElementById("result");
+    if(!materialCode || !vibCode){
+        resDom.innerText = "请继续扫描第二个二维码";
+        resDom.className = "result";
+        return;
+    }
+    let ok = allowList.includes(materialCode) && materialCode === vibCode;
+    if(ok){
+        resDom.innerText = "✅ 匹配成功，可以投料";
+        resDom.className = "result ok";
+    }else{
+        resDom.innerText = "❌ 不匹配，禁止投料";
+        resDom.className = "result no";
+    }
+}
+
+function resetAll(){
+    stopCamera();
+    materialCode = "";
+    vibCode = "";
+    document.getElementById("material").innerText = "未扫描";
+    document.getElementById("vib").innerText = "未扫描";
+    document.getElementById("result").innerText = "等待扫码匹配";
+    document.getElementById("result").className = "result";
+}
+</script>
+</body>
+</html>
