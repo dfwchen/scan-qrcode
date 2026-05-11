@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>STH_物料/振动盘匹配</title>
+<title>永浪STH_物料/振动盘匹配</title>
 <style>
 *{box-sizing:border-box;}
 body{text-align:center;padding:20px;background:#f0f2f5;font-family:'Segoe UI',Roboto,Arial,sans-serif;margin:0;}
@@ -201,7 +201,7 @@ button{flex:1;padding:14px;font-size:16px;font-weight:bold;border:none;border-ra
     💡 使用说明：<br>
     1️⃣ 点击「开始扫码」，对准物料二维码<br>
     2️⃣ 识别后，再对准振动盘二维码<br>
-    3️⃣ 两码一致 → 🟢 绿色闪烁提示<br>
+    3️⃣ 两码一致 → 🟢 绿色闪烁 + 叮咚声<br>
     4️⃣ 两码不一致 → 🔴 红色警告，需手动重置<br>
   </div>
 </div>
@@ -209,8 +209,8 @@ button{flex:1;padding:14px;font-size:16px;font-weight:bold;border:none;border-ra
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
 // ==================== 状态管理 ====================
-let materialCode = "";      // 物料码（提取后）
-let vibCode = "";           // 振动盘码（原样）
+let materialCode = "";
+let vibCode = "";
 let isWaitingForVib = false;
 let html5QrCode = null;
 let isScanning = false;
@@ -239,15 +239,11 @@ const fullscreenBlinkSuccess = document.getElementById("fullscreenBlinkSuccess")
 
 // ==================== 成功绿色提示（2秒）====================
 function playSuccessBlink() {
-    // 全屏绿色闪烁
     fullscreenBlinkSuccess.style.display = "block";
-    // 摄像头区域绿色闪烁
     cameraBlinkSuccess.style.display = "block";
-    // 两个码块绿色闪烁
     materialEl.classList.add("success-blink");
     vibEl.classList.add("success-blink");
     
-    // 2秒后停止闪烁
     setTimeout(() => {
         fullscreenBlinkSuccess.style.display = "none";
         cameraBlinkSuccess.style.display = "none";
@@ -256,7 +252,45 @@ function playSuccessBlink() {
     }, 2000);
 }
 
-// ==================== 警告声音（5秒）====================
+// ==================== 匹配成功 - 叮咚声 ====================
+function playSuccessSound() {
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const now = audioContext.currentTime;
+        
+        // 第一个音："叮"（高音）
+        const osc1 = audioContext.createOscillator();
+        const gain1 = audioContext.createGain();
+        osc1.connect(gain1);
+        gain1.connect(audioContext.destination);
+        osc1.frequency.value = 880;  // A5
+        osc1.type = "sine";
+        gain1.gain.value = 0.35;
+        osc1.start();
+        gain1.gain.exponentialRampToValueAtTime(0.00001, now + 0.15);
+        osc1.stop(now + 0.15);
+        
+        // 第二个音："咚"（中音）
+        const osc2 = audioContext.createOscillator();
+        const gain2 = audioContext.createGain();
+        osc2.connect(gain2);
+        gain2.connect(audioContext.destination);
+        osc2.frequency.value = 523;  // C5
+        osc2.type = "sine";
+        gain2.gain.value = 0.3;
+        osc2.start(now + 0.15);
+        gain2.gain.exponentialRampToValueAtTime(0.00001, now + 0.35);
+        osc2.stop(now + 0.35);
+        
+        setTimeout(() => audioContext.close(), 500);
+    } catch(e) { console.log("叮咚声失败:", e); }
+    
+    if (navigator.vibrate) {
+        navigator.vibrate([100, 50, 100]);
+    }
+}
+
+// ==================== 警告声音（3秒）====================
 function playWarningSound() {
     stopWarningSound();
     
@@ -470,16 +504,14 @@ function checkMatch() {
     const isSame = (materialCode === vibCode);
     
     if (isSame) {
-        // ✅ 匹配成功 - 绿色闪烁2秒
+        // ✅ 匹配成功 - 绿色闪烁2秒 + 叮咚声
         resultCard.className = "result-card success";
         resultCard.innerHTML = "✅ 物料与振动盘一致，可以投料 🎉";
         statusText.innerText = "✅ 匹配成功！自动重置，准备下一组";
-        playBeep();
+        playSuccessSound();  // 叮咚声
         
-        // 播放绿色闪烁提示（2秒）
         playSuccessBlink();
         
-        // 1.5秒后自动重置
         setTimeout(() => {
             autoResetForNext();
         }, 1500);
@@ -560,7 +592,6 @@ function onScanSuccess(decodedText) {
     startCooldown();
     
     if (!isWaitingForVib && materialCode === "") {
-        // 扫物料码：需要提取 PE/PD 前缀
         const cleanCode = extractMaterialCode(rawCode);
         if (!cleanCode) {
             console.log("未提取到有效物料码:", rawCode);
@@ -576,7 +607,6 @@ function onScanSuccess(decodedText) {
         playBeep();
         
     } else if (isWaitingForVib && vibCode === "") {
-        // 扫振动盘码：保持原样，不提取
         const cleanCode = extractVibCode(rawCode);
         if (!cleanCode) {
             console.log("未提取到有效振动盘码:", rawCode);
