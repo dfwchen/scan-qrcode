@@ -24,7 +24,7 @@ h2{color:#1a1a2e;margin-bottom:10px;font-size:22px;}
     background: rgba(255, 0, 0, 0.6);
     pointer-events: none;
     z-index: 9999;
-    animation: blinkRed 0.3s ease-in-out infinite;
+    animation: blinkRed 0.5s ease-in-out infinite;
     display: none;
 }
 
@@ -38,7 +38,7 @@ h2{color:#1a1a2e;margin-bottom:10px;font-size:22px;}
     background: rgba(76, 175, 80, 0.6);
     pointer-events: none;
     z-index: 9999;
-    animation: blinkGreen 0.15s ease-in-out 4;
+    animation: blinkGreen 0.5s ease-in-out 4;
     display: none;
 }
 
@@ -62,7 +62,7 @@ h2{color:#1a1a2e;margin-bottom:10px;font-size:22px;}
     background: rgba(255, 0, 0, 0.7);
     pointer-events: none;
     border-radius: 16px;
-    animation: blinkFast 0.2s ease-in-out infinite;
+    animation: blinkFast 0.5s ease-in-out infinite;
     display: none;
     z-index: 10;
 }
@@ -77,7 +77,7 @@ h2{color:#1a1a2e;margin-bottom:10px;font-size:22px;}
     background: rgba(76, 175, 80, 0.8);
     pointer-events: none;
     border-radius: 16px;
-    animation: blinkFastGreen 0.15s ease-in-out 4;
+    animation: blinkFastGreen 0.5s ease-in-out 4;
     display: none;
     z-index: 10;
 }
@@ -100,13 +100,13 @@ h2{color:#1a1a2e;margin-bottom:10px;font-size:22px;}
 .scan-value.current{background:#2196f3;color:white;}
 /* 不匹配时红色闪烁的码块 */
 .scan-value.error-blink {
-    animation: errorBlink 0.3s ease-in-out infinite;
+    animation: errorBlink 0.5s ease-in-out infinite;
     background: #f44336 !important;
     color: white !important;
 }
 /* 匹配成功时绿色闪烁的码块 */
 .scan-value.success-blink {
-    animation: successBlink 0.15s ease-in-out 4;
+    animation: successBlink 0.5s ease-in-out 4;
     background: #4caf50 !important;
     color: white !important;
 }
@@ -193,9 +193,9 @@ button{flex:1;padding:14px;font-size:16px;font-weight:bold;border:none;border-ra
   </div>
 
   <div class="btn-group">
-    <button class="btn-primary" onclick="startScan()">▶ 开始扫码</button>
-    <button class="btn-secondary" onclick="stopScan()">⏹ 停止扫码</button>
-    <button class="btn-reset" onclick="manualReset()">🔄 手动重置</button>
+    <button class="btn-primary" onclick="startScan()">▶ 开始扫</button>
+    <button class="btn-secondary" onclick="stopScan()">⏹ 停止扫</button>
+    <button class="btn-reset" onclick="manualReset()">🔄 重  置</button>
   </div>
   <div class="guide">
     💡 使用说明：<br>
@@ -275,7 +275,7 @@ function playWarningSound() {
         
         warningTimer = setTimeout(() => {
             stopWarningSound();
-        }, 5000);
+        }, 3000);
         
         let startTime = warningAudioContext.currentTime;
         let interval = setInterval(() => {
@@ -301,7 +301,7 @@ function playWarningSound() {
             warningTimer = setTimeout(() => {
                 audio.pause();
                 audio.loop = false;
-            }, 5000);
+            }, 3000);
         } catch(e2) {}
     }
 }
@@ -346,7 +346,7 @@ function startRedBlink() {
     
     setTimeout(() => {
         stopRedBlink();
-    }, 5000);
+    }, 3000);
 }
 
 function stopRedBlink() {
@@ -486,7 +486,7 @@ function checkMatch() {
     } else {
         // ❌ 不匹配
         resultCard.className = "result-card error";
-        resultCard.innerHTML = `❌ 禁止投料！<br><small>物料：${materialCode}<br>振动盘：${vibCode}<br>两码不一致</small><br>点击「手动重置」后重扫`;
+        resultCard.innerHTML = `❌ 禁止投料！<br><small>  物料：${materialCode}<br>振动盘：${vibCode}<br>两码不一致</small><br>点击「手动重置」后重扫`;
         statusText.innerText = "❌ 匹配失败，请手动重置后重试";
         statusDot.className = "status-dot stop";
         
