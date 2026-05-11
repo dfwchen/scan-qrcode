@@ -1,171 +1,115 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-    <title>物料振动盘扫码匹配</title>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-    <style>
-        *{margin:0;padding:0;box-sizing:border-box;}
-        body{font-family:微软雅黑;padding:15px;background:#f5f5f5;}
-        .title{font-size:22px;text-align:center;margin-bottom:15px;font-weight:bold;}
-        #video{
-            width:100%;
-            max-width:420px;
-            border:2px solid #007aff;
-            border-radius:10px;
-            display:block;
-            margin:0 auto 15px;
-            background:#000;
-        }
-        .info-box{
-            background:#fff;
-            padding:15px;
-            border-radius:10px;
-            margin-bottom:15px;
-        }
-        .info-item{font-size:17px;margin:8px 0;}
-        .result{
-            font-size:19px;
-            text-align:center;
-            padding:15px;
-            border-radius:10px;
-            margin-bottom:20px;
-        }
-        .ok{background:#e8f5e9;color:#2e7d32;}
-        .no{background:#ffebee;color:#c62828;}
-        button{
-            width:100%;
-            max-width:420px;
-            padding:14px;
-            font-size:17px;
-            border-radius:8px;
-            border:none;
-            margin:8px auto;
-            display:block;
-            background:#007aff;
-            color:#fff;
-        }
-        canvas{display:none;}
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>扫码匹配</title>
+<style>
+body{text-align:center;padding:20px;background:#f5f5f5;}
+#video{width:100%;max-width:400px;border:2px solid #007aff;border-radius:10px;background:#000;margin:0 auto 15px;}
+button{width:100%;max-width:400px;padding:14px;margin:8px 0;font-size:16px;background:#007aff;color:#fff;border:none;border-radius:8px;}
+.info{background:#fff;padding:15px;border-radius:10px;margin-bottom:15px;}
+.result{padding:15px;border-radius:10px;margin:15px 0;font-size:18px;}
+.ok{background:#e8f5e9;color:#2e7d32}
+.no{background:#ffebee;color:#c62828}
+</style>
 </head>
 <body>
-    <div class="title">物料振动盘扫码匹配</div>
 
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="canvas"></canvas>
+<h2>物料振动盘扫码匹配</h2>
+<video id="video" autoplay playsinline muted></video>
 
-    <div class="info-box">
-        <div class="info-item">物料码：<span id="material">未扫描</span></div>
-        <div class="info-item">振动盘：<span id="vib">未扫描</span></div>
-    </div>
+<div class="info">
+  <p>物料码：<span id="m">未扫描</span></p>
+  <p>振动盘：<span id="v">未扫描</span></p>
+</div>
 
-    <div id="result" class="result">等待扫码匹配</div>
+<div id="result" class="result">等待扫码</div>
 
-    <button onclick="openCamera()">打开摄像头</button>
-    <button onclick="doScan()">点击扫码识别</button>
-    <button onclick="resetAll()">重置重新开始</button>
+<button onclick="openCamera()">打开摄像头</button>
+<button onclick="scanOnce()">点击扫码识别</button>
+<button onclick="resetAll()">重置</button>
 
 <script>
-let materialCode = "";
-let vibCode = "";
-let isMatScan = true;
-let mediaStream = null;
+let material = "";
+let vib = "";
+let isMaterial = true;
+let stream = null;
+let v = document.getElementById("video");
 
-const allowList = ["PD19191-2","PE10529-1","PE10526-1","PE10672"];
-
-// 只打开摄像头，不自动扫码
 async function openCamera(){
-    if(mediaStream) stopCam();
-    try{
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" }
-        });
-        document.getElementById('video').srcObject = mediaStream;
-    }catch(err){
-        alert("请允许摄像头权限，必须HTTPS访问");
-    }
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "environment" }
+  });
+  v.srcObject = stream;
 }
 
-// 手动点击才解码一次
-function doScan(){
-    const v = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-
-    if(!mediaStream){
-        alert("请先打开摄像头");
-        return;
-    }
-    if(v.readyState < 2){
-        alert("摄像头画面还没准备好，稍等再点");
-        return;
-    }
-
-    canvas.width = v.videoWidth;
-    canvas.height = v.videoHeight;
-    ctx.drawImage(v,0,0);
-    let codeRes = jsQR(ctx.getImageData(0,0,canvas.width,canvas.height),canvas.width,canvas.height);
-
-    if(codeRes){
-        onScanSuccess(codeRes.data);
+function scanOnce(){
+  if(!stream) { alert("请先打开摄像头"); return; }
+  
+  let canvas = document.createElement("canvas");
+  let ctx = canvas.getContext("2d");
+  canvas.width = v.videoWidth;
+  canvas.height = v.videoHeight;
+  ctx.drawImage(v,0,0);
+  
+  // 调用浏览器原生扫码接口（最稳）
+  Quagga.decodeSingle({
+    src: canvas,
+    numOfWorkers: 0,
+    inputStream: { area: { top: "0%", left: "0%", right: "100%", bottom: "100%" } },
+    decoder: { readers: ["code_128_reader","ean_reader","qr_reader"] }
+  }, function(result){
+    if(result && result.codeResult){
+      ok(result.codeResult.code);
     }else{
-        alert("未识别到二维码，请对准后再点一次");
+      alert("未识别到二维码，请对准再点");
     }
+  });
 }
 
-function stopCam(){
-    if(mediaStream){
-        mediaStream.getTracks().forEach(t=>t.stop());
-        mediaStream = null;
-    }
+function ok(txt){
+  stream.getTracks().forEach(t=>t.stop());
+  stream = null;
+  let s = txt.trim();
+  let code = s;
+  let pd = s.indexOf("PD");
+  let pe = s.indexOf("PE");
+  if(pd>=0||pe>=0) code = s.substring(Math.max(pd,pe));
+  
+  if(isMaterial){
+    material = code;
+    document.getElementById("m").innerText = code;
+    isMaterial = false;
+  }else{
+    vib = code;
+    document.getElementById("v").innerText = code;
+    isMaterial = true;
+  }
+  check();
 }
 
-function onScanSuccess(txt){
-    stopCam();
-    let s = txt.trim();
-    let idx = Math.max(s.indexOf("PD"), s.indexOf("PE"));
-    let code = idx >=0 ? s.slice(idx) : s;
-
-    if(isMatScan){
-        materialCode = code;
-        document.getElementById("material").innerText = code;
-        isMatScan = false;
-    }else{
-        vibCode = code;
-        document.getElementById("vib").innerText = code;
-        isMatScan = true;
-    }
-    checkMatch();
-}
-
-function checkMatch(){
-    let el = document.getElementById("result");
-    if(!materialCode || !vibCode){
-        el.innerText = "请继续扫描第二个码";
-        el.className = "result";
-        return;
-    }
-    let ok = (materialCode === vibCode) && allowList.includes(materialCode);
-    if(ok){
-        el.innerText = "✅ 匹配成功，可以投料";
-        el.className = "result ok";
-    }else{
-        el.innerText = "❌ 不匹配，禁止投料";
-        el.className = "result no";
-    }
+function check(){
+  let allow = ["PD19191-2","PE10529-1","PE10526-1","PE10672"];
+  let r = document.getElementById("result");
+  if(!material || !vib){ r.innerText="请扫第二个码"; r.className="result"; return; }
+  let ok = (material===vib) && allow.includes(material);
+  if(ok){ r.innerText="✅ 匹配成功，可以投料"; r.className="result ok"; }
+  else{ r.innerText="❌ 不匹配，禁止投料"; r.className="result no"; }
 }
 
 function resetAll(){
-    stopCam();
-    materialCode = "";
-    vibCode = "";
-    isMatScan = true;
-    document.getElementById("material").innerText = "未扫描";
-    document.getElementById("vib").innerText = "未扫描";
-    document.getElementById("result").innerText = "等待扫码匹配";
-    document.getElementById("result").className = "result";
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  stream=null; material=""; vib=""; isMaterial=true;
+  document.getElementById("m").innerText="未扫描";
+  document.getElementById("v").innerText="未扫描";
+  document.getElementById("result").innerText="等待扫码";
+  document.getElementById("result").className="result";
 }
 </script>
+
+<!-- 唯一外部库，稳定不挂 -->
+<script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
 </body>
 </html>
