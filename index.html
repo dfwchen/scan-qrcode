@@ -28,7 +28,26 @@ h2{color:#1a1a2e;margin-bottom:10px;font-size:22px;}
     display: none;
 }
 
+/* 绿色闪烁覆盖层 - 用于成功提示 */
+.success-blink-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(76, 175, 80, 0.6);
+    pointer-events: none;
+    z-index: 9999;
+    animation: blinkGreen 0.15s ease-in-out 4;
+    display: none;
+}
+
 @keyframes blinkRed {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 1; }
+}
+
+@keyframes blinkGreen {
     0%, 100% { opacity: 0; }
     50% { opacity: 1; }
 }
@@ -48,7 +67,27 @@ h2{color:#1a1a2e;margin-bottom:10px;font-size:22px;}
     z-index: 10;
 }
 
+/* 摄像头区域绿色闪烁（成功） */
+.camera-blink-success {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(76, 175, 80, 0.8);
+    pointer-events: none;
+    border-radius: 16px;
+    animation: blinkFastGreen 0.15s ease-in-out 4;
+    display: none;
+    z-index: 10;
+}
+
 @keyframes blinkFast {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+}
+
+@keyframes blinkFastGreen {
     0%, 100% { opacity: 0.3; }
     50% { opacity: 1; }
 }
@@ -65,9 +104,19 @@ h2{color:#1a1a2e;margin-bottom:10px;font-size:22px;}
     background: #f44336 !important;
     color: white !important;
 }
+/* 匹配成功时绿色闪烁的码块 */
+.scan-value.success-blink {
+    animation: successBlink 0.15s ease-in-out 4;
+    background: #4caf50 !important;
+    color: white !important;
+}
 @keyframes errorBlink {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.7; transform: scale(1.05); }
+}
+@keyframes successBlink {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.1); background: #2e7d32 !important; }
 }
 
 .status-bar{background:#fff;padding:12px;border-radius:12px;margin:15px 0;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);}
@@ -77,12 +126,16 @@ h2{color:#1a1a2e;margin-bottom:10px;font-size:22px;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
 
 .result-card{padding:18px;border-radius:16px;margin:15px 0;font-size:18px;font-weight:bold;transition:all 0.3s;}
-.result-card.success{background:#e8f5e9;color:#2e7d32;border-left:5px solid #4caf50;}
+.result-card.success{background:#e8f5e9;color:#2e7d32;border-left:5px solid #4caf50;animation: successShake 0.3s ease;}
 .result-card.error{background:#ffebee;color:#c62828;border-left:5px solid #f44336;animation: shake 0.5s ease-in-out;}
 @keyframes shake {
     0%, 100% { transform: translateX(0); }
     25% { transform: translateX(-5px); }
     75% { transform: translateX(5px); }
+}
+@keyframes successShake {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
 }
 .result-card.waiting{background:#fff3e0;color:#e65100;border-left:5px solid #ff9800;}
 
@@ -109,10 +162,13 @@ button{flex:1;padding:14px;font-size:16px;font-weight:bold;border:none;border-ra
 
   <div id="reader" style="position:relative;">
     <div id="cameraBlink" class="camera-blink"></div>
+    <div id="cameraBlinkSuccess" class="camera-blink-success"></div>
   </div>
 
-  <!-- 全屏红色闪烁层 -->
+  <!-- 全屏红色闪烁层（警告） -->
   <div id="fullscreenBlink" class="blink-overlay"></div>
+  <!-- 全屏绿色闪烁层（成功） -->
+  <div id="fullscreenBlinkSuccess" class="success-blink-overlay"></div>
 
   <div class="scan-header">
     <div class="scan-item">
@@ -144,26 +200,25 @@ button{flex:1;padding:14px;font-size:16px;font-weight:bold;border:none;border-ra
   <div class="guide">
     💡 使用说明：<br>
     1️⃣ 点击「开始扫码」，对准第一个二维码（物料码）<br>
-    2️⃣ 自动识别后，再对准第二个二维码（振动盘码）<br>
-    3️⃣ 两码一致 → 🟢 绿色放行，自动重置准备下一组<br>
+    2️⃣ 自动识别后（提取PE/PD前缀），再对准第二个二维码（振动盘码，保持原样）<br>
+    3️⃣ 两码一致 → 🟢 绿色闪烁提示2秒，自动重置准备下一组<br>
     4️⃣ 两码不一致 → 🔴 红色警告（声音+闪烁），需手动重置<br>
-    5️⃣ 扫码后有2秒冷却时间，避免重复扫码<br>
-    6️⃣ 保留完整物料码（如 PE10529-1 保持不变）
+    5️⃣ 扫码后有2秒冷却时间，避免重复扫码
   </div>
 </div>
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
 // ==================== 状态管理 ====================
-let materialCode = "";      // 物料码
-let vibCode = "";           // 振动盘码
-let isWaitingForVib = false; // true=已扫物料码,等待振动盘码; false=等待物料码
+let materialCode = "";      // 物料码（提取后）
+let vibCode = "";           // 振动盘码（原样）
+let isWaitingForVib = false;
 let html5QrCode = null;
 let isScanning = false;
 
 // 冷却控制
-let isCooling = false;      // 是否在冷却中
-let cooldownTimer = null;   // 冷却计时器
+let isCooling = false;
+let cooldownTimer = null;
 
 // 警告声音控制
 let warningAudioContext = null;
@@ -179,11 +234,32 @@ const statusText = document.getElementById("statusText");
 const statusDot = document.getElementById("statusDot");
 const cooldownTip = document.getElementById("cooldownTip");
 const cameraBlink = document.getElementById("cameraBlink");
+const cameraBlinkSuccess = document.getElementById("cameraBlinkSuccess");
 const fullscreenBlink = document.getElementById("fullscreenBlink");
+const fullscreenBlinkSuccess = document.getElementById("fullscreenBlinkSuccess");
+
+// ==================== 成功绿色提示（2秒）====================
+function playSuccessBlink() {
+    // 全屏绿色闪烁
+    fullscreenBlinkSuccess.style.display = "block";
+    // 摄像头区域绿色闪烁
+    cameraBlinkSuccess.style.display = "block";
+    // 两个码块绿色闪烁
+    materialEl.classList.add("success-blink");
+    vibEl.classList.add("success-blink");
+    
+    // 2秒后停止闪烁
+    setTimeout(() => {
+        fullscreenBlinkSuccess.style.display = "none";
+        cameraBlinkSuccess.style.display = "none";
+        materialEl.classList.remove("success-blink");
+        vibEl.classList.remove("success-blink");
+    }, 2000);
+}
 
 // ==================== 警告声音（5秒）====================
 function playWarningSound() {
-    stopWarningSound(); // 先停止已有的警告声音
+    stopWarningSound();
     
     try {
         warningAudioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -193,26 +269,19 @@ function playWarningSound() {
         warningOscillator.connect(warningGain);
         warningGain.connect(warningAudioContext.destination);
         
-        // 设置声音频率（更刺耳的警告声）
         warningOscillator.frequency.value = 660;
-        warningOscillator.type = "sawtooth"; // 锯齿波更刺耳
-        
-        // 音量
+        warningOscillator.type = "sawtooth";
         warningGain.gain.value = 0.4;
-        
         warningOscillator.start();
         
-        // 5秒后自动停止
         warningTimer = setTimeout(() => {
             stopWarningSound();
         }, 5000);
         
-        // 添加颤音效果（频率变化）
         let startTime = warningAudioContext.currentTime;
         let interval = setInterval(() => {
             if (warningOscillator && warningAudioContext) {
                 try {
-                    // 交替改变频率产生警报效果
                     let elapsed = warningAudioContext.currentTime - startTime;
                     let freq = 660 + Math.sin(elapsed * 20) * 100;
                     warningOscillator.frequency.value = freq;
@@ -222,12 +291,10 @@ function playWarningSound() {
             }
         }, 100);
         
-        // 保存interval以便清理
         warningOscillator._freqInterval = interval;
         
     } catch(e) {
         console.log("警告声音失败:", e);
-        // 备用方案：使用简单的蜂鸣声
         try {
             let audio = new Audio('data:audio/wav;base64,U3RlYWx0aCBzb3VuZA==');
             audio.loop = true;
@@ -272,17 +339,12 @@ function stopWarningSound() {
     }
 }
 
-// 开始红色闪烁警告
 function startRedBlink() {
-    // 全屏红色闪烁
     fullscreenBlink.style.display = "block";
-    // 摄像头区域红色闪烁
     cameraBlink.style.display = "block";
-    // 给两个码块添加红色闪烁效果
     materialEl.classList.add("error-blink");
     vibEl.classList.add("error-blink");
     
-    // 5秒后自动停止闪烁（与声音同步）
     setTimeout(() => {
         stopRedBlink();
     }, 5000);
@@ -295,8 +357,9 @@ function stopRedBlink() {
     vibEl.classList.remove("error-blink");
 }
 
-// ==================== 核心函数：提取二维码内容 ====================
-function extractCode(raw) {
+// ==================== 核心函数 ====================
+// 物料码：提取 PE/PD 前缀
+function extractMaterialCode(raw) {
     if (!raw) return "";
     let s = raw.trim().toUpperCase();
     
@@ -321,6 +384,12 @@ function extractCode(raw) {
     }
     
     return s.replace(/\s/g, '');
+}
+
+// 振动盘码：保持原样，只去空格
+function extractVibCode(raw) {
+    if (!raw) return "";
+    return raw.trim().replace(/\s/g, '');
 }
 
 function updateUI() {
@@ -402,25 +471,27 @@ function checkMatch() {
     const isSame = (materialCode === vibCode);
     
     if (isSame) {
-        // ✅ 匹配成功
+        // ✅ 匹配成功 - 绿色闪烁2秒
         resultCard.className = "result-card success";
         resultCard.innerHTML = "✅ 匹配成功！物料与振动盘一致，可以投料 🎉";
         statusText.innerText = "✅ 匹配成功！自动重置，准备下一组";
         playBeep();
         
+        // 播放绿色闪烁提示（2秒）
+        playSuccessBlink();
+        
+        // 1.5秒后自动重置
         setTimeout(() => {
             autoResetForNext();
         }, 1500);
     } else {
-        // ❌ 不匹配 - 播放5秒警告声音 + 红色闪烁
+        // ❌ 不匹配
         resultCard.className = "result-card error";
         resultCard.innerHTML = `❌ 匹配失败，禁止投料！<br><small>物料码：${materialCode}<br>振动盘码：${vibCode}<br>两码不一致</small><br>请点击「手动重置」后重新扫码`;
         statusText.innerText = "❌ 匹配失败，请手动重置后重试";
         statusDot.className = "status-dot stop";
         
-        // 播放警告声音（5秒）
         playWarningSound();
-        // 开始红色闪烁（5秒）
         startRedBlink();
         
         if (isScanning) {
@@ -438,7 +509,6 @@ function autoResetForNext() {
     if (cooldownTimer) clearTimeout(cooldownTimer);
     cooldownTip.style.display = "none";
     
-    // 停止警告声音和闪烁
     stopWarningSound();
     stopRedBlink();
     
@@ -459,7 +529,6 @@ function manualReset() {
     if (cooldownTimer) clearTimeout(cooldownTimer);
     cooldownTip.style.display = "none";
     
-    // 停止警告声音和闪烁
     stopWarningSound();
     stopRedBlink();
     
@@ -488,16 +557,16 @@ function onScanSuccess(decodedText) {
     }
     
     const rawCode = decodedText;
-    const cleanCode = extractCode(rawCode);
-    
-    if (!cleanCode) {
-        console.log("未提取到有效码:", rawCode);
-        return;
-    }
     
     startCooldown();
     
     if (!isWaitingForVib && materialCode === "") {
+        // 扫物料码：需要提取 PE/PD 前缀
+        const cleanCode = extractMaterialCode(rawCode);
+        if (!cleanCode) {
+            console.log("未提取到有效物料码:", rawCode);
+            return;
+        }
         materialCode = cleanCode;
         isWaitingForVib = true;
         updateUI();
@@ -508,6 +577,12 @@ function onScanSuccess(decodedText) {
         playBeep();
         
     } else if (isWaitingForVib && vibCode === "") {
+        // 扫振动盘码：保持原样，不提取
+        const cleanCode = extractVibCode(rawCode);
+        if (!cleanCode) {
+            console.log("未提取到有效振动盘码:", rawCode);
+            return;
+        }
         vibCode = cleanCode;
         updateUI();
         
