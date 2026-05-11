@@ -17,7 +17,7 @@ h2{color:#1a1a2e;margin-bottom:10px;font-size:22px;}
 .scan-header{display:flex;justify-content:space-between;background:#fff;padding:12px 16px;border-radius:12px;margin:15px 0;box-shadow:0 2px 8px rgba(0,0,0,0.1);}
 .scan-item{flex:1;text-align:center;}
 .scan-label{font-size:13px;color:#888;margin-bottom:6px;}
-.scan-value{font-size:18px;font-weight:bold;padding:6px 10px;border-radius:20px;background:#f5f5f5;display:inline-block;}
+.scan-value{font-size:18px;font-weight:bold;padding:6px 10px;border-radius:20px;background:#f5f5f5;display:inline-block;word-break:break-all;max-width:100%;}
 .scan-value.scanned{background:#4caf50;color:white;}
 .scan-value.current{background:#2196f3;color:white;}
 
@@ -41,7 +41,9 @@ button{flex:1;padding:14px;font-size:16px;font-weight:bold;border:none;border-ra
 .btn-reset{background:#ff9800;color:white;}
 .btn-reset:hover{background:#f57c00;}
 
-.guide{background:#e3f2fd;padding:12px;border-radius:12px;font-size:13px;color:#1565c0;margin-top:15px;}
+.guide{background:#e3f2fd;padding:12px;border-radius:12px;font-size:13px;color:#1565c0;margin-top:15px;text-align:left;}
+
+.cooldown-tip{background:#fff3e0;border-left:3px solid #ff9800;padding:8px 12px;margin:10px 0;font-size:12px;color:#e65100;border-radius:8px;}
 
 @media (max-width:480px){body{padding:12px;}h2{font-size:20px;}.scan-value{font-size:14px;}}
 </style>
@@ -70,6 +72,10 @@ button{flex:1;padding:14px;font-size:16px;font-weight:bold;border:none;border-ra
   </div>
 
   <div id="resultCard" class="result-card waiting">✨ 准备就绪，点击开始扫码</div>
+  
+  <div class="cooldown-tip" id="cooldownTip" style="display:none;">
+    ⏱️ 冷却中（2秒），请稍后再扫...
+  </div>
 
   <div class="btn-group">
     <button class="btn-primary" onclick="startScan()">▶ 开始扫码</button>
@@ -82,7 +88,8 @@ button{flex:1;padding:14px;font-size:16px;font-weight:bold;border:none;border-ra
     2️⃣ 自动识别后，再对准第二个二维码（振动盘码）<br>
     3️⃣ 两码一致 → 🟢 绿色放行，自动重置准备下一组<br>
     4️⃣ 两码不一致 → 🔴 红色警告，需手动重置<br>
-    5️⃣ 支持二维码/条形码
+    5️⃣ 扫码后有2秒冷却时间，避免重复扫码<br>
+    6️⃣ 保留完整物料码（如 PE10529-1 保持不变）
   </div>
 </div>
 
@@ -95,8 +102,9 @@ let isWaitingForVib = false; // true=已扫物料码,等待振动盘码; false=�
 let html5QrCode = null;
 let isScanning = false;
 
-// 允许的物料清单（可根据需要修改）
-const ALLOWED_CODES = ["PD19191-2", "PE10529-1", "PE10526-1", "PE10672"];
+// 冷却控制
+let isCooling = false;      // 是否在冷却中
+let cooldownTimer = null;   // 冷却计时器
 
 // DOM 元素
 const materialEl = document.getElementById("materialValue");
@@ -104,8 +112,49 @@ const vibEl = document.getElementById("vibValue");
 const resultCard = document.getElementById("resultCard");
 const statusText = document.getElementById("statusText");
 const statusDot = document.getElementById("statusDot");
+const cooldownTip = document.getElementById("cooldownTip");
 
-// ==================== 辅助函数 ====================
+// ==================== 核心函数：提取二维码内容 ====================
+/**
+ * 提取二维码中的有效码
+ * - 如果包含 PE 或 PD，保留完整的 PE/PD 开头的内容
+ * - 否则返回原码（去空格）
+ */
+function extractCode(raw) {
+    if (!raw) return "";
+    let s = raw.trim().toUpperCase();
+    
+    // 查找 PE 或 PD 的位置
+    let peIndex = s.indexOf("PE");
+    let pdIndex = s.indexOf("PD");
+    
+    let startIndex = -1;
+    let prefix = "";
+    
+    if (peIndex >= 0) {
+        startIndex = peIndex;
+        prefix = "PE";
+    } else if (pdIndex >= 0) {
+        startIndex = pdIndex;
+        prefix = "PD";
+    }
+    
+    if (startIndex >= 0) {
+        // 找到 PE 或 PD 开头，提取从那里开始到末尾的内容
+        let result = s.substring(startIndex);
+        // 提取字母数字和横线、下划线（直到遇到非这些字符为止）
+        let match = result.match(/^[A-Z0-9\-_]+/);
+        if (match) {
+            return match[0];
+        }
+        return result;
+    }
+    
+    // 如果没有 PE/PD，返回原码（去空格）
+    return s.replace(/\s/g, '');
+}
+
+// 更新界面显示
 function updateUI() {
     // 更新物料码显示
     if (materialCode) {
@@ -141,7 +190,6 @@ function updateUI() {
 // 播放提示音和振动
 function playBeep() {
     try {
-        // 使用 Web Audio API 发出简短提示音
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
@@ -152,47 +200,48 @@ function playBeep() {
         oscillator.start();
         gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.3);
         oscillator.stop(audioContext.currentTime + 0.3);
-        // 避免多个声音上下文堆积
         setTimeout(() => audioContext.close(), 400);
     } catch(e) { console.log("提示音失败"); }
     
-    // 振动（移动端）
     if (navigator.vibrate) {
         navigator.vibrate(100);
     }
 }
 
-// 提取码中的核心部分（PDxxx 或 PExxx）
-function extractCode(raw) {
-    if (!raw) return "";
-    let s = raw.trim().toUpperCase();
-    // 查找 PD 或 PE 开头
-    let pdIndex = s.indexOf("PD");
-    let peIndex = s.indexOf("PE");
-    let startIndex = -1;
-    if (pdIndex >= 0) startIndex = pdIndex;
-    if (peIndex >= 0 && (startIndex === -1 || peIndex < startIndex)) startIndex = peIndex;
+// 开始冷却（2秒）
+function startCooldown() {
+    if (cooldownTimer) clearTimeout(cooldownTimer);
     
-    if (startIndex >= 0) {
-        // 提取从PD/PE开始到末尾或遇到非字母数字为止
-        let result = s.substring(startIndex);
-        // 匹配字母数字和横线
-        let match = result.match(/^[A-Z0-9-]+/);
-        if (match) return match[0];
-        return result;
-    }
-    // 如果没有PD/PE，返回原始码（去空格）
-    return s.replace(/\s/g, '');
+    isCooling = true;
+    cooldownTip.style.display = "block";
+    
+    // 保存当前状态文字
+    let originalStatus = statusText.innerText;
+    statusText.innerText = originalStatus + " (冷却2秒)";
+    
+    cooldownTimer = setTimeout(() => {
+        isCooling = false;
+        cooldownTip.style.display = "none";
+        // 恢复状态文字
+        if (isScanning) {
+            if (isWaitingForVib && !vibCode) {
+                statusText.innerText = "扫码中，请对准振动盘码";
+            } else if (!isWaitingForVib && !materialCode) {
+                statusText.innerText = "扫码中，请对准物料码";
+            } else {
+                statusText.innerText = "扫码中";
+            }
+        }
+    }, 2000); // 2秒冷却时间
 }
 
-// 匹配检查
+// 匹配检查（纯粹比较两个码是否相等）
 function checkMatch() {
     if (!materialCode || !vibCode) return;
     
     const isSame = (materialCode === vibCode);
-    const isAllowed = ALLOWED_CODES.includes(materialCode);
     
-    if (isSame && isAllowed) {
+    if (isSame) {
         // ✅ 匹配成功 - 绿色放行
         resultCard.className = "result-card success";
         resultCard.innerHTML = "✅ 匹配成功！物料与振动盘一致，可以投料 🎉";
@@ -205,12 +254,8 @@ function checkMatch() {
         }, 1500);
     } else {
         // ❌ 不匹配 - 红色警告
-        let reason = "";
-        if (!isSame) reason = `码不一致：${materialCode} ≠ ${vibCode}`;
-        else if (!isAllowed) reason = `物料码 ${materialCode} 不在允许列表中`;
-        
         resultCard.className = "result-card error";
-        resultCard.innerHTML = `❌ 匹配失败，禁止投料！<br><small>${reason}</small><br>请点击「手动重置」后重新扫码`;
+        resultCard.innerHTML = `❌ 匹配失败，禁止投料！<br><small>物料码：${materialCode}<br>振动盘码：${vibCode}<br>两码不一致</small><br>请点击「手动重置」后重新扫码`;
         statusText.innerText = "❌ 匹配失败，请手动重置后重试";
         statusDot.className = "status-dot stop";
         
@@ -228,6 +273,11 @@ function autoResetForNext() {
     vibCode = "";
     isWaitingForVib = false;
     
+    // 清除冷却状态
+    isCooling = false;
+    if (cooldownTimer) clearTimeout(cooldownTimer);
+    cooldownTip.style.display = "none";
+    
     updateUI();
     
     resultCard.className = "result-card waiting";
@@ -238,14 +288,16 @@ function autoResetForNext() {
     // 如果扫码已停止，重新启动
     if (!isScanning) {
         startScan();
-    } else {
-        // 确保扫码器还在工作
-        console.log("继续扫码中");
     }
 }
 
 // 手动重置
 function manualReset() {
+    // 清除冷却状态
+    isCooling = false;
+    if (cooldownTimer) clearTimeout(cooldownTimer);
+    cooldownTip.style.display = "none";
+    
     materialCode = "";
     vibCode = "";
     isWaitingForVib = false;
@@ -257,24 +309,33 @@ function manualReset() {
     statusText.innerText = isScanning ? "扫码中，请对准物料码" : "请点击「开始扫码」";
     statusDot.className = "status-dot";
     
-    // 如果扫码未启动，保持停止状态；如果已启动，继续扫码
     if (!isScanning) {
-        // 保持停止，用户需要点击开始
         statusText.innerText = "已重置，请点击「开始扫码」";
     }
 }
 
-// ==================== 扫码处理 ====================
+// ==================== 扫码处理（带冷却控制）====================
 function onScanSuccess(decodedText) {
+    // 如果不在扫码状态，忽略
     if (!isScanning) return;
     
+    // 如果正在冷却中，忽略本次扫码
+    if (isCooling) {
+        console.log("冷却中，忽略扫码:", decodedText);
+        return;
+    }
+    
     const rawCode = decodedText;
+    // 提取码（保留完整的 PE/PD 前缀）
     const cleanCode = extractCode(rawCode);
     
     if (!cleanCode) {
         console.log("未提取到有效码:", rawCode);
         return;
     }
+    
+    // 开始冷却（2秒），防止短时间内重复扫码同一个二维码
+    startCooldown();
     
     if (!isWaitingForVib && materialCode === "") {
         // 扫描第一个码（物料码）
@@ -286,6 +347,8 @@ function onScanSuccess(decodedText) {
         resultCard.innerHTML = `📦 已扫物料码：${materialCode}<br>⚙️ 请继续扫描振动盘码`;
         statusText.innerText = "已扫物料码，请对准振动盘码扫描";
         playBeep();
+        
+        console.log("等待扫第二个码...");
         
     } else if (isWaitingForVib && vibCode === "") {
         // 扫描第二个码（振动盘码）
@@ -309,13 +372,10 @@ function onScanError(error) {
 // ==================== 摄像头控制 ====================
 async function startScan() {
     if (isScanning) {
-        // 如果已经在扫码，先停止再重启（解决某些卡顿问题）
         await stopScan();
-        // 延迟一点再启动
         await new Promise(r => setTimeout(r, 300));
     }
     
-    // 如果已经有结果且是成功状态，先重置
     if (resultCard.className.includes("success")) {
         autoResetForNext();
     }
@@ -348,10 +408,8 @@ async function startScan() {
         statusDot.className = "status-dot";
         statusText.innerText = isWaitingForVib ? "扫码中，请对准振动盘码" : "扫码中，请对准物料码";
         
-        // 更新UI高亮
         updateUI();
         
-        // 如果之前有失败警告，清除警告样式
         if (resultCard.className.includes("error")) {
             resultCard.className = "result-card waiting";
             resultCard.innerHTML = "已重置，请扫码物料码";
@@ -379,14 +437,12 @@ async function stopScan() {
     statusDot.className = "status-dot stop";
 }
 
-// 页面关闭前释放摄像头
 window.addEventListener('beforeunload', () => {
     if (html5QrCode && isScanning) {
         html5QrCode.stop().catch(e => console.log(e));
     }
 });
 
-// 初始化UI
 updateUI();
 </script>
 </body>
