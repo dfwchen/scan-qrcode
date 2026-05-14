@@ -1,601 +1,268 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>永浪有限公司</title>
-<style>
-*{box-sizing:border-box;}
-body{text-align:center;padding:20px;background:#f0f2f5;font-family:'Segoe UI',Roboto,Arial,sans-serif;margin:0;}
-.container{max-width:500px;margin:0 auto;}
-
-h2{color:#1a1a2e;margin-bottom:10px;font-size:22px;}
-.sub{color:#666;font-size:14px;margin-bottom:20px;}
-
-#reader{width:100%;max-width:400px;margin:0 auto;border-radius:16px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.15);background:#000;position:relative;}
-
-/* 红色闪烁覆盖层 - 用于警告提示 */
-.blink-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(255, 0, 0, 0.6);
-    pointer-events: none;
-    z-index: 9999;
-    animation: blinkRed 0.3s ease-in-out infinite;
-    display: none;
-}
-
-@keyframes blinkRed {
-    0%, 100% { opacity: 0; }
-    50% { opacity: 1; }
-}
-
-/* 摄像头区域红色闪烁 */
-.camera-blink {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(255, 0, 0, 0.7);
-    pointer-events: none;
-    border-radius: 16px;
-    animation: blinkFast 0.2s ease-in-out infinite;
-    display: none;
-    z-index: 10;
-}
-
-@keyframes blinkFast {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 1; }
-}
-
-.scan-header{display:flex;justify-content:space-between;background:#fff;padding:12px 16px;border-radius:12px;margin:15px 0;box-shadow:0 2px 8px rgba(0,0,0,0.1);}
-.scan-item{flex:1;text-align:center;}
-.scan-label{font-size:13px;color:#888;margin-bottom:6px;}
-.scan-value{font-size:18px;font-weight:bold;padding:6px 10px;border-radius:20px;background:#f5f5f5;display:inline-block;word-break:break-all;max-width:100%;}
-.scan-value.scanned{background:#4caf50;color:white;}
-.scan-value.current{background:#2196f3;color:white;}
-/* 不匹配时红色闪烁的码块 */
-.scan-value.error-blink {
-    animation: errorBlink 0.3s ease-in-out infinite;
-    background: #f44336 !important;
-    color: white !important;
-}
-@keyframes errorBlink {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.7; transform: scale(1.05); }
-}
-
-.status-bar{background:#fff;padding:12px;border-radius:12px;margin:15px 0;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);}
-.status-dot{width:12px;height:12px;border-radius:50%;background:#4caf50;animation:pulse 1.5s infinite;}
-.status-dot.wait{background:#ff9800;animation:none;}
-.status-dot.stop{background:#f44336;animation:none;}
-@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
-
-.result-card{padding:18px;border-radius:16px;margin:15px 0;font-size:18px;font-weight:bold;transition:all 0.3s;}
-.result-card.success{background:#e8f5e9;color:#2e7d32;border-left:5px solid #4caf50;}
-.result-card.error{background:#ffebee;color:#c62828;border-left:5px solid #f44336;animation: shake 0.5s ease-in-out;}
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-5px); }
-    75% { transform: translateX(5px); }
-}
-.result-card.waiting{background:#fff3e0;color:#e65100;border-left:5px solid #ff9800;}
-
-.btn-group{display:flex;gap:12px;margin:15px 0;}
-button{flex:1;padding:14px;font-size:16px;font-weight:bold;border:none;border-radius:40px;cursor:pointer;transition:all 0.2s;}
-.btn-primary{background:#2196f3;color:white;box-shadow:0 2px 6px rgba(33,150,243,0.3);}
-.btn-primary:hover{background:#1976d2;}
-.btn-secondary{background:#9e9e9e;color:white;}
-.btn-secondary:hover{background:#757575;}
-.btn-reset{background:#ff9800;color:white;}
-.btn-reset:hover{background:#f57c00;}
-
-.guide{background:#e3f2fd;padding:12px;border-radius:12px;font-size:13px;color:#1565c0;margin-top:15px;text-align:left;}
-
-.cooldown-tip{background:#fff3e0;border-left:3px solid #ff9800;padding:8px 12px;margin:10px 0;font-size:12px;color:#e65100;border-radius:8px;}
-
-@media (max-width:480px){body{padding:12px;}h2{font-size:20px;}.scan-value{font-size:14px;}}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>二维码对比工具</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: #1a1a1a;
+            color: white;
+            font-family: Arial, sans-serif;
+            transition: background 0.3s;
+        }
+        #video-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            aspect-ratio: 1/1;
+            overflow: hidden;
+            border-radius: 12px;
+            margin: 10px 0;
+        }
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+        #status {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 15px;
+            text-align: center;
+        }
+        .qr-data {
+            font-size: 14px;
+            word-break: break-all;
+            max-width: 90%;
+            margin: 5px;
+            padding: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 6px;
+        }
+        button {
+            padding: 12px 30px;
+            font-size: 18px;
+            margin: 10px;
+            border: none;
+            border-radius: 25px;
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+        }
+        button:active {
+            background: #388E3C;
+        }
+        .vibrate-warning {
+            background: red !important;
+            animation: pulse 0.5s infinite alternate;
+        }
+        @keyframes pulse {
+            from { background: red; }
+            to { background: darkred; }
+        }
+    </style>
 </head>
 <body>
-<div class="container">
-  <h2>📦 STH物料/振动盘匹配</h2>
-  <div class="sub">扫码比对 | 一致放行</div>
-
-  <div id="reader" style="position:relative;">
-    <div id="cameraBlink" class="camera-blink"></div>
-  </div>
-
-  <!-- 全屏红色闪烁层 -->
-  <div id="fullscreenBlink" class="blink-overlay"></div>
-
-  <div class="scan-header">
-    <div class="scan-item">
-      <div class="scan-label">📦 物料码</div>
-      <div class="scan-value" id="materialValue">等待扫码</div>
+    <div id="status">等待开始...</div>
+    <div id="video-container">
+        <video id="video" autoplay playsinline muted></video>
     </div>
-    <div class="scan-item">
-      <div class="scan-label">⚙️ 振动盘</div>
-      <div class="scan-value" id="vibValue">等待扫码</div>
-    </div>
-  </div>
+    <div id="qr1-data" class="qr-data">二维码1: 未扫描</div>
+    <div id="qr2-data" class="qr-data">二维码2: 未扫描</div>
+    <button id="start-btn">开始对比流程</button>
+    <button id="reset-btn" style="background:#f44336;">重置</button>
 
-  <div class="status-bar">
-    <div class="status-dot" id="statusDot"></div>
-    <span id="statusText">等待开始</span>
-  </div>
-
-  <div id="resultCard" class="result-card waiting">✨ 准备就绪，点击开始</div>
-  
-  <div class="cooldown-tip" id="cooldownTip" style="display:none;">
-    ⏱️ 冷却中（2秒），请稍后再扫...
-  </div>
-
-  <div class="btn-group">
-    <button class="btn-primary" onclick="startScan()">▶ 开始</button>
-    <button class="btn-secondary" onclick="stopScan()">⏹ 停止</button>
-    <button class="btn-reset" onclick="manualReset()">🔄 重置</button>
-  </div>
-  <div class="guide">
-    💡 使用说明：<br>
-    1️⃣ 点击「开始」，对准物料码<br>
-    2️⃣ 自动识别后，再对准振动盘<br>
-    3️⃣ 两码一致 → 🟢 绿色放行<br>
-    4️⃣ 两码不一致 → 🔴 红色警告，重置<br>
-  </div>
-</div>
-
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script>
-// ==================== 状态管理 ====================
-let materialCode = "";      // 物料码
-let vibCode = "";           // 振动盘码
-let isWaitingForVib = false; // true=已扫物料码,等待振动盘码; false=等待物料码
-let html5QrCode = null;
-let isScanning = false;
-
-// 冷却控制
-let isCooling = false;      // 是否在冷却中
-let cooldownTimer = null;   // 冷却计时器
-
-// 警告声音控制
-let warningAudioContext = null;
-let warningOscillator = null;
-let warningGain = null;
-let warningTimer = null;
-
-// DOM 元素
-const materialEl = document.getElementById("materialValue");
-const vibEl = document.getElementById("vibValue");
-const resultCard = document.getElementById("resultCard");
-const statusText = document.getElementById("statusText");
-const statusDot = document.getElementById("statusDot");
-const cooldownTip = document.getElementById("cooldownTip");
-const cameraBlink = document.getElementById("cameraBlink");
-const fullscreenBlink = document.getElementById("fullscreenBlink");
-
-// ==================== 警告声音（5秒）====================
-function playWarningSound() {
-    stopWarningSound(); // 先停止已有的警告声音
+    <!-- 引入 jsQR 库 -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     
-    try {
-        warningAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-        warningOscillator = warningAudioContext.createOscillator();
-        warningGain = warningAudioContext.createGain();
-        
-        warningOscillator.connect(warningGain);
-        warningGain.connect(warningAudioContext.destination);
-        
-        // 设置声音频率（更刺耳的警告声）
-        warningOscillator.frequency.value = 660;
-        warningOscillator.type = "sawtooth"; // 锯齿波更刺耳
-        
-        // 音量
-        warningGain.gain.value = 0.4;
-        
-        warningOscillator.start();
-        
-        // 5秒后自动停止
-        warningTimer = setTimeout(() => {
-            stopWarningSound();
-        }, 5000);
-        
-        // 添加颤音效果（频率变化）
-        let startTime = warningAudioContext.currentTime;
-        let interval = setInterval(() => {
-            if (warningOscillator && warningAudioContext) {
-                try {
-                    // 交替改变频率产生警报效果
-                    let elapsed = warningAudioContext.currentTime - startTime;
-                    let freq = 660 + Math.sin(elapsed * 20) * 100;
-                    warningOscillator.frequency.value = freq;
-                } catch(e) {}
-            } else {
-                clearInterval(interval);
+    <script>
+        const video = document.getElementById('video');
+        const statusDiv = document.getElementById('status');
+        const qr1DataDiv = document.getElementById('qr1-data');
+        const qr2DataDiv = document.getElementById('qr2-data');
+        const startBtn = document.getElementById('start-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const body = document.body;
+
+        let stream = null;
+        let animationFrameId = null;
+        let qr1Value = null;
+        let qr2Value = null;
+        let currentTarget = 1; // 1: 等待扫描第一个, 2: 等待扫描第二个
+        let scanLocked = false;  // 防止重复扫描
+        let secondScanTimer = null;
+        let isRunning = false;
+
+        // 启动摄像头
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" } // 后置摄像头
+                });
+                video.srcObject = stream;
+                video.setAttribute("playsinline", true);
+                video.play();
+                return true;
+            } catch (err) {
+                console.error('摄像头启动失败:', err);
+                statusDiv.textContent = '摄像头权限被拒绝或不可用';
+                return false;
             }
-        }, 100);
-        
-        // 保存interval以便清理
-        warningOscillator._freqInterval = interval;
-        
-    } catch(e) {
-        console.log("警告声音失败:", e);
-        // 备用方案：使用简单的蜂鸣声
-        try {
-            let audio = new Audio('data:audio/wav;base64,U3RlYWx0aCBzb3VuZA==');
-            audio.loop = true;
-            audio.play();
-            warningTimer = setTimeout(() => {
-                audio.pause();
-                audio.loop = false;
+        }
+
+        // 停止摄像头
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+                video.srcObject = null;
+            }
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        }
+
+        // 触发震动 (需要设备支持)
+        function vibrateDevice(pattern) {
+            if (navigator.vibrate) {
+                navigator.vibrate(pattern);
+            }
+        }
+
+        // 全屏红色警告
+        function triggerMismatchWarning() {
+            body.classList.add('vibrate-warning');
+            statusDiv.textContent = '❌ 不一致！二维码不匹配！';
+            vibrateDevice([200, 100, 200, 100, 500]); // 持续震动
+            isRunning = false;
+            scanLocked = true;
+            
+            // 5秒后自动恢复，重置所有状态
+            setTimeout(() => {
+                resetAll();
             }, 5000);
-        } catch(e2) {}
-    }
-}
+        }
 
-function stopWarningSound() {
-    if (warningTimer) {
-        clearTimeout(warningTimer);
-        warningTimer = null;
-    }
-    
-    if (warningOscillator) {
-        try {
-            if (warningOscillator._freqInterval) {
-                clearInterval(warningOscillator._freqInterval);
+        // 重置所有状态
+        function resetAll() {
+            body.classList.remove('vibrate-warning');
+            qr1Value = null;
+            qr2Value = null;
+            currentTarget = 1;
+            scanLocked = false;
+            isRunning = true;
+            if (secondScanTimer) {
+                clearTimeout(secondScanTimer);
+                secondScanTimer = null;
             }
-            warningOscillator.stop();
-            warningOscillator.disconnect();
-        } catch(e) {}
-        warningOscillator = null;
-    }
-    
-    if (warningGain) {
-        try {
-            warningGain.disconnect();
-        } catch(e) {}
-        warningGain = null;
-    }
-    
-    if (warningAudioContext) {
-        try {
-            warningAudioContext.close();
-        } catch(e) {}
-        warningAudioContext = null;
-    }
-}
-
-// 开始红色闪烁警告
-function startRedBlink() {
-    // 全屏红色闪烁
-    fullscreenBlink.style.display = "block";
-    // 摄像头区域红色闪烁
-    cameraBlink.style.display = "block";
-    // 给两个码块添加红色闪烁效果
-    materialEl.classList.add("error-blink");
-    vibEl.classList.add("error-blink");
-    
-    // 5秒后自动停止闪烁（与声音同步）
-    setTimeout(() => {
-        stopRedBlink();
-    }, 5000);
-}
-
-function stopRedBlink() {
-    fullscreenBlink.style.display = "none";
-    cameraBlink.style.display = "none";
-    materialEl.classList.remove("error-blink");
-    vibEl.classList.remove("error-blink");
-}
-
-// ==================== 核心函数：提取二维码内容 ====================
-function extractCode(raw) {
-    if (!raw) return "";
-    let s = raw.trim().toUpperCase();
-    
-    let peIndex = s.indexOf("PE");
-    let pdIndex = s.indexOf("PD");
-    
-    let startIndex = -1;
-    
-    if (peIndex >= 0) {
-        startIndex = peIndex;
-    } else if (pdIndex >= 0) {
-        startIndex = pdIndex;
-    }
-    
-    if (startIndex >= 0) {
-        let result = s.substring(startIndex);
-        let match = result.match(/^[A-Z0-9\-_]+/);
-        if (match) {
-            return match[0];
+            qr1DataDiv.textContent = '二维码1: 未扫描';
+            qr2DataDiv.textContent = '二维码2: 未扫描';
+            statusDiv.textContent = '请扫描第一个二维码...';
         }
-        return result;
-    }
-    
-    return s.replace(/\s/g, '');
-}
 
-function updateUI() {
-    if (materialCode) {
-        materialEl.innerHTML = materialCode;
-        materialEl.classList.add("scanned");
-    } else {
-        materialEl.innerHTML = isWaitingForVib ? "待扫振动盘" : "等待扫码";
-        materialEl.classList.remove("scanned");
-    }
-    
-    if (vibCode) {
-        vibEl.innerHTML = vibCode;
-        vibEl.classList.add("scanned");
-    } else {
-        vibEl.innerHTML = isWaitingForVib ? "等待扫码" : "待扫物料";
-        vibEl.classList.remove("scanned");
-    }
-    
-    if (!isWaitingForVib && !materialCode) {
-        materialEl.classList.add("current");
-        vibEl.classList.remove("current");
-    } else if (isWaitingForVib && !vibCode) {
-        materialEl.classList.remove("current");
-        vibEl.classList.add("current");
-    } else {
-        materialEl.classList.remove("current");
-        vibEl.classList.remove("current");
-    }
-}
-
-function playBeep() {
-    try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        oscillator.frequency.value = 880;
-        gainNode.gain.value = 0.3;
-        oscillator.start();
-        gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.3);
-        oscillator.stop(audioContext.currentTime + 0.3);
-        setTimeout(() => audioContext.close(), 400);
-    } catch(e) { console.log("提示音失败"); }
-    
-    if (navigator.vibrate) {
-        navigator.vibrate(100);
-    }
-}
-
-function startCooldown() {
-    if (cooldownTimer) clearTimeout(cooldownTimer);
-    
-    isCooling = true;
-    cooldownTip.style.display = "block";
-    
-    let originalStatus = statusText.innerText;
-    statusText.innerText = originalStatus + " (冷却2秒)";
-    
-    cooldownTimer = setTimeout(() => {
-        isCooling = false;
-        cooldownTip.style.display = "none";
-        if (isScanning) {
-            if (isWaitingForVib && !vibCode) {
-                statusText.innerText = "扫码中，请对准振动盘";
-            } else if (!isWaitingForVib && !materialCode) {
-                statusText.innerText = "扫码中，请对准物料码";
-            } else {
-                statusText.innerText = "扫码中";
+        // 扫描循环
+        function scanLoop() {
+            if (!isRunning || !video.videoWidth) {
+                animationFrameId = requestAnimationFrame(scanLoop);
+                return;
             }
+
+            // 创建离屏canvas来获取视频帧
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+            // 使用jsQR解析
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: "dontInvert",
+            });
+
+            if (code && !scanLocked) {
+                const scannedData = code.data;
+                
+                if (currentTarget === 1) {
+                    // 扫描到第一个码
+                    qr1Value = scannedData;
+                    qr1DataDiv.textContent = `二维码1: ${scannedData}`;
+                    statusDiv.textContent = '✅ 第一个码已记录，准备扫描第二个...';
+                    currentTarget = 2;
+                    scanLocked = true; // 锁定，防止瞬间重复扫描
+                    
+                    // 1秒后解锁，开始扫描第二个
+                    secondScanTimer = setTimeout(() => {
+                        scanLocked = false;
+                        statusDiv.textContent = '请扫描第二个二维码...';
+                        secondScanTimer = null;
+                    }, 1000);
+                    
+                } else if (currentTarget === 2) {
+                    // 扫描到第二个码
+                    qr2Value = scannedData;
+                    qr2DataDiv.textContent = `二维码2: ${scannedData}`;
+                    scanLocked = true;
+                    
+                    // 进行对比
+                    if (qr1Value === qr2Value) {
+                        statusDiv.textContent = '✅ 两个二维码一致！重置并继续...';
+                        vibrateDevice(100); // 短震提示成功
+                        
+                        // 延迟1秒后重置，自动循环
+                        setTimeout(() => {
+                            resetAll();
+                        }, 1000);
+                    } else {
+                        triggerMismatchWarning();
+                    }
+                }
+            }
+
+            animationFrameId = requestAnimationFrame(scanLoop);
         }
-    }, 2000);
-}
 
-function checkMatch() {
-    if (!materialCode || !vibCode) return;
-    
-    const isSame = (materialCode === vibCode);
-    
-    if (isSame) {
-        // ✅ 匹配成功
-        resultCard.className = "result-card success";
-        resultCard.innerHTML = "✅ 匹配成功！可以投料 🎉";
-        statusText.innerText = "✅ 匹配成功，准备下一组";
-        playBeep();
-        
-        setTimeout(() => {
-            autoResetForNext();
-        }, 1500);
-    } else {
-        // ❌ 不匹配 - 播放5秒警告声音 + 红色闪烁
-        resultCard.className = "result-card error";
-        resultCard.innerHTML = `❌ 匹配失败，禁止投料！<br><small>物料：${materialCode}<br>振动盘：${vibCode}<br>两码不一致</small><br>请重置后再扫`;
-        statusText.innerText = "❌ 匹配失败，请重置后再试";
-        statusDot.className = "status-dot stop";
-        
-        // 播放警告声音（5秒）
-        playWarningSound();
-        // 开始红色闪烁（5秒）
-        startRedBlink();
-        
-        if (isScanning) {
-            stopScan();
+        // 开始流程
+        async function startProcess() {
+            if (isRunning) return;
+            
+            const cameraReady = await startCamera();
+            if (!cameraReady) return;
+            
+            resetAll();
+            isRunning = true;
+            scanLoop();
+            startBtn.textContent = '运行中...';
+            startBtn.style.opacity = '0.6';
         }
-    }
-}
 
-function autoResetForNext() {
-    materialCode = "";
-    vibCode = "";
-    isWaitingForVib = false;
-    
-    isCooling = false;
-    if (cooldownTimer) clearTimeout(cooldownTimer);
-    cooldownTip.style.display = "none";
-    
-    // 停止警告声音和闪烁
-    stopWarningSound();
-    stopRedBlink();
-    
-    updateUI();
-    
-    resultCard.className = "result-card waiting";
-    resultCard.innerHTML = "✨ 准备就绪，继续扫下一个";
-    statusText.innerText = "扫码中，请对准物料码";
-    statusDot.className = "status-dot";
-    
-    if (!isScanning) {
-        startScan();
-    }
-}
-
-function manualReset() {
-    isCooling = false;
-    if (cooldownTimer) clearTimeout(cooldownTimer);
-    cooldownTip.style.display = "none";
-    
-    // 停止警告声音和闪烁
-    stopWarningSound();
-    stopRedBlink();
-    
-    materialCode = "";
-    vibCode = "";
-    isWaitingForVib = false;
-    
-    updateUI();
-    
-    resultCard.className = "result-card waiting";
-    resultCard.innerHTML = "🔄 已重置，请重新开始扫";
-    statusText.innerText = isScanning ? "扫码中，请对准物料码" : "请点击「开始」";
-    statusDot.className = "status-dot";
-    
-    if (!isScanning) {
-        statusText.innerText = "已重置，请点击「开始」";
-    }
-}
-
-// ==================== 扫码处理 ====================
-function onScanSuccess(decodedText) {
-    if (!isScanning) return;
-    if (isCooling) {
-        console.log("冷却中，忽略扫码:", decodedText);
-        return;
-    }
-    
-    const rawCode = decodedText;
-    const cleanCode = extractCode(rawCode);
-    
-    if (!cleanCode) {
-        console.log("未提取到有效码:", rawCode);
-        return;
-    }
-    
-    startCooldown();
-    
-    if (!isWaitingForVib && materialCode === "") {
-        materialCode = cleanCode;
-        isWaitingForVib = true;
-        updateUI();
-        
-        resultCard.className = "result-card waiting";
-        resultCard.innerHTML = `📦 已扫物料：${materialCode}<br>⚙️ 请继续扫振动盘`;
-        statusText.innerText = "已扫物料，请对准振动盘扫";
-        playBeep();
-        
-    } else if (isWaitingForVib && vibCode === "") {
-        vibCode = cleanCode;
-        updateUI();
-        
-        statusText.innerText = "已扫振动盘，正在比对...";
-        playBeep();
-        
-        checkMatch();
-    }
-}
-
-function onScanError(error) {
-    // 正常扫码过程中的错误，不处理
-}
-
-// ==================== 摄像头控制 ====================
-async function startScan() {
-    if (isScanning) {
-        await stopScan();
-        await new Promise(r => setTimeout(r, 300));
-    }
-    
-    if (resultCard.className.includes("success")) {
-        autoResetForNext();
-    }
-    
-    statusText.innerText = "正在启动摄像头...";
-    statusDot.className = "status-dot wait";
-    
-    if (html5QrCode) {
-        try {
-            await html5QrCode.stop();
-        } catch(e) {}
-    }
-    
-    html5QrCode = new Html5Qrcode("reader");
-    
-    try {
-        await html5QrCode.start(
-            { facingMode: "environment" },
-            {
-                fps: 15,
-                qrbox: { width: 280, height: 280 },
-                aspectRatio: 1.0,
-                disableFlip: false
-            },
-            onScanSuccess,
-            onScanError
-        );
-        
-        isScanning = true;
-        statusDot.className = "status-dot";
-        statusText.innerText = isWaitingForVib ? "扫码中，请对准振动盘" : "扫码中，请对准物料";
-        
-        updateUI();
-        
-        if (resultCard.className.includes("error")) {
-            resultCard.className = "result-card waiting";
-            resultCard.innerHTML = "已重置，请扫物料";
+        // 手动重置
+        function manualReset() {
+            stopCamera();
+            resetAll();
+            isRunning = false;
+            startBtn.textContent = '开始对比流程';
+            startBtn.style.opacity = '1';
+            statusDiv.textContent = '已重置，准备重新开始';
         }
-        
-    } catch(err) {
-        console.error("启动摄像头失败:", err);
-        statusText.innerText = "摄像头启动失败，请检查权限";
-        statusDot.className = "status-dot stop";
-        alert("无法启动摄像头，请确保已授权并刷新页面重试");
-        isScanning = false;
-    }
-}
 
-async function stopScan() {
-    if (html5QrCode && isScanning) {
-        try {
-            await html5QrCode.stop();
-        } catch(e) {
-            console.log("停止扫码出错:", e);
-        }
-    }
-    isScanning = false;
-    statusText.innerText = "扫码已停止";
-    statusDot.className = "status-dot stop";
-}
+        startBtn.addEventListener('click', startProcess);
+        resetBtn.addEventListener('click', manualReset);
 
-window.addEventListener('beforeunload', () => {
-    stopWarningSound();
-    if (html5QrCode && isScanning) {
-        html5QrCode.stop().catch(e => console.log(e));
-    }
-});
-
-updateUI();
-</script>
+        // 页面关闭时释放摄像头
+        window.addEventListener('beforeunload', () => {
+            stopCamera();
+        });
+    </script>
 </body>
 </html>
