@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>二维码对比工具</title>
+    <title>永浪有限公司</title>
     <style>
         body {
             margin: 0;
@@ -79,7 +79,7 @@
         <video id="video" autoplay playsinline muted></video>
     </div>
     <div id="qr1-data" class="qr-data">物料码: 未扫描</div>
-    <div id="qr2-data" class="qr-data">振动盘码: 未扫描</div>
+    <div id="qr2-data" class="qr-data">振动盘: 未扫描</div>
     <button id="start-btn">开始对比流程</button>
     <button id="reset-btn" style="background:#f44336;">重置</button>
 
@@ -115,7 +115,7 @@
             
             if (lastPIndex === -1) {
                 // 如果没找到P，返回原始内容（也可以根据需求返回null或抛出警告）
-                console.warn('物料码中未找到P标识，将使用完整码对比');
+                console.warn(‘材料不是P开头，将使用完整码对比');
                 return fullCode;
             }
             
@@ -166,7 +166,7 @@
         // 全屏红色警告 - 物料码与振动盘码不一致
         function triggerMismatchWarning(materialCode, vibratorCode) {
             body.classList.add('vibrate-warning');
-            statusDiv.innerHTML = `❌ 不匹配！<br>物料: ${materialCode}<br>振动盘: ${vibratorCode}`;
+            statusDiv.innerHTML = `❌ 不匹配！停止加料！<br>物料码: ${materialCode}<br>振动盘: ${vibratorCode}`;
             vibrateDevice([200, 100, 200, 100, 500]); // 强烈震动
             isRunning = false;
             scanLocked = true;
@@ -191,7 +191,7 @@
                 secondScanTimer = null;
             }
             qr1DataDiv.textContent = '物料码: 未扫描';
-            qr2DataDiv.textContent = '振动盘码: 未扫描';
+            qr2DataDiv.textContent = '振动盘: 未扫描';
             statusDiv.textContent = '📱 请扫描物料码...';
         }
 
@@ -228,8 +228,8 @@
                     qr1RawValue = scannedData;
                     qr1Extracted = extractMaterialCode(scannedData);
                     
-                    qr1DataDiv.innerHTML = `物料码(完整): ${qr1RawValue}<br>物料码(截取): <strong>${qr1Extracted}</strong>`;
-                    statusDiv.innerHTML = `✅ 物料码已记录<br>截取码: ${qr1Extracted}<br>1秒后扫描振动盘...`;
+                    qr1DataDiv.innerHTML = `物料码: ${qr1RawValue}<br>部品号: <strong>${qr1Extracted}</strong>`;
+                    statusDiv.innerHTML = `✅ 物料码已记录<br>部品号: ${qr1Extracted}<br>1秒后扫振动盘...`;
                     
                     currentTarget = 2;
                     scanLocked = true;
@@ -244,7 +244,7 @@
                 } else if (currentTarget === 2) {
                     // ========== 扫描振动盘码 ==========
                     qr2Value = scannedData;
-                    qr2DataDiv.textContent = `振动盘码: ${qr2Value}`;
+                    qr2DataDiv.textContent = `振动盘: ${qr2Value}`;
                     scanLocked = true;
                     
                     // 对比：物料码截取部分 vs 振动盘码完整内容
