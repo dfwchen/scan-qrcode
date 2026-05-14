@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>二维码对比工具</title>
+    <title>永浪有限公司</title>
     <style>
         body {
             margin: 0;
@@ -76,8 +76,8 @@
     <div id="video-container">
         <video id="video" autoplay playsinline muted></video>
     </div>
-    <div id="qr1-data" class="qr-data">二维码1: 未扫描</div>
-    <div id="qr2-data" class="qr-data">二维码2: 未扫描</div>
+    <div id="qr1-data" class="qr-data">物料码: 未扫描</div>
+    <div id="qr2-data" class="qr-data">震动盘: 未扫描</div>
     <button id="start-btn">开始对比流程</button>
     <button id="reset-btn" style="background:#f44336;">重置</button>
 
@@ -97,7 +97,7 @@
         let animationFrameId = null;
         let qr1Value = null;
         let qr2Value = null;
-        let currentTarget = 1; // 1: 等待扫描第一个, 2: 等待扫描第二个
+        let currentTarget = 1; // 1: 等待扫物料码, 2: 等待扫振动盘
         let scanLocked = false;  // 防止重复扫描
         let secondScanTimer = null;
         let isRunning = false;
@@ -142,7 +142,7 @@
         // 全屏红色警告
         function triggerMismatchWarning() {
             body.classList.add('vibrate-warning');
-            statusDiv.textContent = '❌ 不一致！二维码不匹配！';
+            statusDiv.textContent = '❌ 不匹配！取消加料！';
             vibrateDevice([200, 100, 200, 100, 500]); // 持续震动
             isRunning = false;
             scanLocked = true;
@@ -165,9 +165,9 @@
                 clearTimeout(secondScanTimer);
                 secondScanTimer = null;
             }
-            qr1DataDiv.textContent = '二维码1: 未扫描';
-            qr2DataDiv.textContent = '二维码2: 未扫描';
-            statusDiv.textContent = '请扫描第一个二维码...';
+            qr1DataDiv.textContent = '物料码: 未扫描';
+            qr2DataDiv.textContent = '振动盘: 未扫描';
+            statusDiv.textContent = '请扫物料二维码...';
         }
 
         // 扫描循环
@@ -197,26 +197,26 @@
                     // 扫描到第一个码
                     qr1Value = scannedData;
                     qr1DataDiv.textContent = `二维码1: ${scannedData}`;
-                    statusDiv.textContent = '✅ 第一个码已记录，准备扫描第二个...';
+                    statusDiv.textContent = '✅ 物料码已记录，准备扫振动盘...';
                     currentTarget = 2;
                     scanLocked = true; // 锁定，防止瞬间重复扫描
                     
                     // 1秒后解锁，开始扫描第二个
                     secondScanTimer = setTimeout(() => {
                         scanLocked = false;
-                        statusDiv.textContent = '请扫描第二个二维码...';
+                        statusDiv.textContent = '请扫振动盘...';
                         secondScanTimer = null;
                     }, 1000);
                     
                 } else if (currentTarget === 2) {
                     // 扫描到第二个码
                     qr2Value = scannedData;
-                    qr2DataDiv.textContent = `二维码2: ${scannedData}`;
+                    qr2DataDiv.textContent = `振动盘: ${scannedData}`;
                     scanLocked = true;
                     
                     // 进行对比
                     if (qr1Value === qr2Value) {
-                        statusDiv.textContent = '✅ 两个二维码一致！重置并继续...';
+                        statusDiv.textContent = '✅ 物料匹配成功！重置并继续...';
                         vibrateDevice(100); // 短震提示成功
                         
                         // 延迟1秒后重置，自动循环
