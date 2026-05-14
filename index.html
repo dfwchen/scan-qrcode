@@ -99,8 +99,8 @@
         let animationFrameId = null;
         let qr1RawValue = null;   // 物料码完整内容
         let qr1Extracted = null;  // 物料码截取后的值
-        let qr2Value = null;      // 振动盘码完整内容
-        let currentTarget = 1;    // 1: 等待扫描物料码, 2: 等待扫描振动盘码
+        let qr2Value = null;      // 振动盘完整内容
+        let currentTarget = 1;    // 1: 等待扫描物料码, 2: 等待扫描振动盘
         let scanLocked = false;
         let secondScanTimer = null;
         let isRunning = false;
@@ -115,7 +115,7 @@
             
             if (lastPIndex === -1) {
                 // 如果没找到P，返回原始内容（也可以根据需求返回null或抛出警告）
-                console.warn(‘材料不是P开头，将使用完整码对比');
+                console.warn('物料码中未找到P标识，将使用完整码对比');
                 return fullCode;
             }
             
@@ -163,7 +163,7 @@
             }
         }
 
-        // 全屏红色警告 - 物料码与振动盘码不一致
+        // 全屏红色警告 - 物料码与振动盘不一致
         function triggerMismatchWarning(materialCode, vibratorCode) {
             body.classList.add('vibrate-warning');
             statusDiv.innerHTML = `❌ 不匹配！停止加料！<br>物料码: ${materialCode}<br>振动盘: ${vibratorCode}`;
@@ -229,7 +229,7 @@
                     qr1Extracted = extractMaterialCode(scannedData);
                     
                     qr1DataDiv.innerHTML = `物料码: ${qr1RawValue}<br>部品号: <strong>${qr1Extracted}</strong>`;
-                    statusDiv.innerHTML = `✅ 物料码已记录<br>部品号: ${qr1Extracted}<br>1秒后扫振动盘...`;
+                    statusDiv.innerHTML = `✅ 物料码已记录<br>部品号: ${qr1Extracted}<br>1秒后扫描振动盘...`;
                     
                     currentTarget = 2;
                     scanLocked = true;
@@ -242,12 +242,12 @@
                     }, 1000);
                     
                 } else if (currentTarget === 2) {
-                    // ========== 扫描振动盘码 ==========
+                    // ========== 扫描振动盘 ==========
                     qr2Value = scannedData;
                     qr2DataDiv.textContent = `振动盘: ${qr2Value}`;
                     scanLocked = true;
                     
-                    // 对比：物料码截取部分 vs 振动盘码完整内容
+                    // 对比：物料码截取部分 vs 振动盘完整内容
                     if (qr1Extracted === qr2Value) {
                         statusDiv.textContent = '✅ 匹配成功！自动继续...';
                         vibrateDevice(50); // 短震提示成功
