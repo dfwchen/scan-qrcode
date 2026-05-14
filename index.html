@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>永浪有限公司</title>
+    <title>二维码对比工具 - 系统相机版</title>
     <style>
         body {
             margin: 0;
@@ -18,36 +18,6 @@
             font-family: Arial, sans-serif;
             transition: background 0.3s;
         }
-        #video-container {
-            position: relative;
-            width: 100%;
-            max-width: 400px;
-            aspect-ratio: 1/1;
-            overflow: hidden;
-            border-radius: 12px;
-            margin: 10px 0;
-        }
-        #video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        /* 扫描线动画 - 提升视觉反馈 */
-        .scan-line {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, #00ff00, transparent);
-            animation: scanMove 2s ease-in-out infinite;
-            box-shadow: 0 0 8px #00ff00;
-        }
-        @keyframes scanMove {
-            0% { top: 0; }
-            50% { top: 100%; }
-            100% { top: 0; }
-        }
         #status {
             font-size: 24px;
             font-weight: bold;
@@ -55,29 +25,41 @@
             text-align: center;
         }
         .qr-data {
-            font-size: 12px;
+            font-size: 14px;
             word-break: break-all;
             max-width: 90%;
             margin: 5px;
-            padding: 8px;
+            padding: 12px;
             background: rgba(255,255,255,0.1);
-            border-radius: 6px;
+            border-radius: 12px;
             font-family: monospace;
+            line-height: 1.6;
         }
         button {
-            padding: 12px 30px;
-            font-size: 18px;
+            padding: 15px 40px;
+            font-size: 20px;
             margin: 10px;
             border: none;
-            border-radius: 25px;
+            border-radius: 30px;
             background: #4CAF50;
             color: white;
             cursor: pointer;
             transition: all 0.3s;
+            font-weight: bold;
         }
         button:active {
             background: #388E3C;
             transform: scale(0.95);
+        }
+        .scan-btn {
+            width: 80%;
+            max-width: 300px;
+            font-size: 22px;
+            padding: 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .scan-btn:active {
+            background: linear-gradient(135deg, #5a6fd6 0%, #6a3f8f 100%);
         }
         .vibrate-warning {
             background: red !important;
@@ -87,338 +69,230 @@
             from { background: #ff0000; }
             to { background: #cc0000; }
         }
-        /* 扫描框提示 */
-        .scan-hint {
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.7);
-            color: #00ff00;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            z-index: 10;
+        .progress {
+            width: 80%;
+            max-width: 300px;
+            height: 6px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #4CAF50;
+            transition: width 0.5s;
+            border-radius: 3px;
+        }
+        .step-indicator {
+            display: flex;
+            gap: 20px;
+            margin: 10px 0;
+        }
+        .step {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .step.active {
+            background: #4CAF50;
+            transform: scale(1.2);
+        }
+        .step.done {
+            background: #2196F3;
         }
     </style>
 </head>
 <body>
-    <div id="status">等待开始...</div>
-    <div id="video-container">
-        <video id="video" autoplay playsinline muted></video>
-        <div class="scan-line"></div>
-        <div class="scan-hint" id="scan-hint">将二维码对准框内</div>
+    <div id="status">📱 二维码对比工具</div>
+    
+    <div class="step-indicator">
+        <div class="step" id="step1">1</div>
+        <div class="step" id="step2">2</div>
     </div>
-    <div id="qr1-data" class="qr-data">物料二维码: 未扫描</div>
-    <div id="qr2-data" class="qr-data">振动盘条码: 未扫描</div>
-    <button id="start-btn">开始扫码</button>
-    <button id="reset-btn" style="background:#f44336;">刷新重来</button>
+    
+    <div class="progress">
+        <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+    </div>
+    
+    <div id="qr1-data" class="qr-data">物料码: 未扫描</div>
+    <div id="qr2-data" class="qr-data">振动盘码: 未扫描</div>
+    
+    <button id="scan-btn" class="scan-btn">📷 扫描二维码</button>
+    <button id="reset-btn" style="background:#f44336;">🔄 重置</button>
+    
+    <input type="file" id="file-input" accept="image/*" capture="environment" style="display: none;">
 
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     
     <script>
-        const video = document.getElementById('video');
         const statusDiv = document.getElementById('status');
         const qr1DataDiv = document.getElementById('qr1-data');
         const qr2DataDiv = document.getElementById('qr2-data');
-        const startBtn = document.getElementById('start-btn');
+        const scanBtn = document.getElementById('scan-btn');
         const resetBtn = document.getElementById('reset-btn');
-        const scanHint = document.getElementById('scan-hint');
+        const fileInput = document.getElementById('file-input');
+        const progressBar = document.getElementById('progress-bar');
+        const step1 = document.getElementById('step1');
+        const step2 = document.getElementById('step2');
         const body = document.body;
 
-        let stream = null;
-        let animationFrameId = null;
-        let qr1RawValue = null;
         let qr1Extracted = null;
         let qr2Value = null;
-        let currentTarget = 1;
-        let scanLocked = false;
-        let secondScanTimer = null;
-        let isRunning = false;
-        
-        // 扫码优化参数
-        const SCAN_INTERVAL = 100; // 每100ms扫描一次（原来是每帧约16ms，现在降低CPU占用）
-        let lastScanTime = 0;
-        let scanSuccessCount = 0; // 连续扫描成功计数，避免误扫
+        let currentStep = 1; // 1: 等待物料码, 2: 等待振动盘码
+        let isProcessing = false;
 
-        // 从物料码截取 P开头到最后
         function extractMaterialCode(fullCode) {
             if (!fullCode) return null;
             const lastPIndex = fullCode.toUpperCase().lastIndexOf('P');
-            if (lastPIndex === -1) {
-                console.warn('未找到P标识，使用完整码');
-                return fullCode;
-            }
+            if (lastPIndex === -1) return fullCode;
             return fullCode.substring(lastPIndex);
         }
 
-        // 自动对焦功能
-        async function autoFocus() {
-            if (!stream) return;
-            
-            const track = stream.getVideoTracks()[0];
-            if (!track) return;
-            
-            const capabilities = track.getCapabilities();
-            
-            // 检查是否支持手动对焦
-            if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
-                try {
-                    await track.applyConstraints({
-                        advanced: [{ focusMode: 'continuous' }]
-                    });
-                    console.log('✅ 连续自动对焦已启用');
-                } catch (e) {
-                    console.log('连续对焦设置失败，尝试其他方式:', e);
-                }
-            }
-            
-            // 尝试设置对焦距离（如果支持）
-            if (capabilities.focusDistance) {
-                try {
-                    await track.applyConstraints({
-                        advanced: [{ focusMode: 'auto' }]
-                    });
-                } catch (e) {
-                    console.log('自动对焦模式设置失败:', e);
-                }
-            }
-            
-            // 定期触发对焦（有些设备需要）
-            setInterval(() => {
-                if (track.readyState === 'live') {
-                    // 通过快速切换来触发重新对焦
-                    track.applyConstraints({
-                        advanced: [{ focusMode: 'auto' }]
-                    }).catch(() => {});
-                }
-            }, 3000); // 每3秒触发一次自动对焦
-        }
-
-        // 启动摄像头（优化分辨率提高扫码速度）
-        async function startCamera() {
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { 
-                        facingMode: "environment",
-                        width: { ideal: 1920 },   // 提高分辨率
-                        height: { ideal: 1920 },
-                        focusMode: { ideal: 'continuous' } // 连续对焦
-                    }
-                });
-                video.srcObject = stream;
-                video.setAttribute("playsinline", true);
-                
-                // 等视频准备好后启用自动对焦
-                video.onloadedmetadata = () => {
-                    video.play();
-                    autoFocus();
-                };
-                
-                return true;
-            } catch (err) {
-                console.error('摄像头启动失败:', err);
-                // 降级方案：使用较低分辨率
-                try {
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        video: { 
-                            facingMode: "environment",
-                            width: { ideal: 1280 },
-                            height: { ideal: 1280 }
-                        }
-                    });
-                    video.srcObject = stream;
-                    video.play();
-                    autoFocus();
-                    return true;
-                } catch (err2) {
-                    statusDiv.textContent = '❌ 摄像头权限被拒绝或不可用';
-                    return false;
-                }
-            }
-        }
-
-        function stopCamera() {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-                video.srcObject = null;
-            }
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
-        }
-
         function vibrateDevice(pattern) {
-            if (navigator.vibrate) {
-                navigator.vibrate(pattern);
+            if (navigator.vibrate) navigator.vibrate(pattern);
+        }
+
+        function updateUI() {
+            if (currentStep === 1) {
+                step1.classList.add('active');
+                step1.classList.remove('done');
+                step2.classList.remove('active', 'done');
+                progressBar.style.width = '0%';
+                scanBtn.textContent = '📷 扫描物料码';
+                statusDiv.textContent = '请扫描物料码...';
+            } else if (currentStep === 2) {
+                step1.classList.remove('active');
+                step1.classList.add('done');
+                step2.classList.add('active');
+                progressBar.style.width = '50%';
+                scanBtn.textContent = '📷 扫描振动盘码';
+                statusDiv.textContent = '请扫描振动盘码...';
             }
         }
 
-        function triggerMismatchWarning(materialCode, vibratorCode) {
-            body.classList.add('vibrate-warning');
-            statusDiv.innerHTML = `❌ 不匹配！停止投料！<br>物料号: ${materialCode}<br>振动盘: ${vibratorCode}`;
-            vibrateDevice([200, 100, 200, 100, 200, 100, 500]);
-            isRunning = false;
-            scanLocked = true;
+        // 核心：用图片文件解析二维码
+        function decodeQRFromImage(file) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                        inversionAttempts: "attemptBoth",
+                    });
+                    
+                    if (code) {
+                        resolve(code.data.trim());
+                    } else {
+                        reject(new Error('未识别到二维码'));
+                    }
+                };
+                img.onerror = () => reject(new Error('图片加载失败'));
+                img.src = URL.createObjectURL(file);
+            });
+        }
+
+        async function handleFileSelect(event) {
+            if (isProcessing) return;
             
-            setTimeout(() => {
-                resetAll();
-            }, 5000);
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            isProcessing = true;
+            scanBtn.textContent = '⏳ 识别中...';
+            scanBtn.style.opacity = '0.7';
+            
+            try {
+                const scannedData = await decodeQRFromImage(file);
+                
+                if (currentStep === 1) {
+                    // 扫描物料码
+                    qr1Extracted = extractMaterialCode(scannedData);
+                    qr1DataDiv.innerHTML = `物料码(截取): <strong>${qr1Extracted}</strong>`;
+                    statusDiv.textContent = '✅ 物料码已记录';
+                    vibrateDevice(100);
+                    
+                    currentStep = 2;
+                    updateUI();
+                    
+                } else if (currentStep === 2) {
+                    // 扫描振动盘码
+                    qr2Value = scannedData;
+                    qr2DataDiv.textContent = `振动盘码: ${qr2Value}`;
+                    
+                    // 对比
+                    if (qr1Extracted === qr2Value) {
+                        statusDiv.textContent = '✅ 匹配成功！';
+                        progressBar.style.width = '100%';
+                        vibrateDevice(50);
+                        
+                        // 1秒后自动重置继续
+                        setTimeout(() => {
+                            resetAll();
+                        }, 1500);
+                    } else {
+                        // 不匹配警告
+                        body.classList.add('vibrate-warning');
+                        statusDiv.innerHTML = `❌ 不匹配！<br>物料: ${qr1Extracted}<br>振动盘: ${qr2Value}`;
+                        vibrateDevice([200, 100, 200, 100, 200, 100, 500]);
+                        isProcessing = false;
+                        
+                        setTimeout(() => {
+                            resetAll();
+                        }, 5000);
+                        return;
+                    }
+                }
+            } catch (error) {
+                statusDiv.textContent = '❌ ' + error.message;
+                vibrateDevice([100, 100, 100]);
+                setTimeout(() => {
+                    updateUI();
+                }, 1000);
+            }
+            
+            isProcessing = false;
+            scanBtn.style.opacity = '1';
+            scanBtn.textContent = currentStep === 1 ? '📷 扫描物料码' : '📷 扫描振动盘码';
+            
+            // 清空input，允许重复选择同一文件
+            fileInput.value = '';
         }
 
         function resetAll() {
             body.classList.remove('vibrate-warning');
-            qr1RawValue = null;
             qr1Extracted = null;
             qr2Value = null;
-            currentTarget = 1;
-            scanLocked = false;
-            scanSuccessCount = 0;
-            isRunning = true;
-            if (secondScanTimer) {
-                clearTimeout(secondScanTimer);
-                secondScanTimer = null;
-            }
-            qr1DataDiv.textContent = '物料二维码: 未扫描';
-            qr2DataDiv.textContent = '振动盘条码: 未扫描';
-            scanHint.textContent = '将二维码对准框内';
-            statusDiv.textContent = '📱 请扫描物料码...';
+            currentStep = 1;
+            isProcessing = false;
+            qr1DataDiv.textContent = '物料码: 未扫描';
+            qr2DataDiv.textContent = '振动盘码: 未扫描';
+            scanBtn.style.opacity = '1';
+            updateUI();
         }
 
-        // 优化的扫描循环
-        function scanLoop(timestamp) {
-            if (!isRunning || !video.videoWidth) {
-                animationFrameId = requestAnimationFrame(scanLoop);
-                return;
-            }
-
-            // 控制扫描频率，降低性能压力同时保持灵敏度
-            if (timestamp - lastScanTime < SCAN_INTERVAL) {
-                animationFrameId = requestAnimationFrame(scanLoop);
-                return;
-            }
-            lastScanTime = timestamp;
-
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            
-            // 水平翻转匹配实际画面
-            ctx.translate(canvas.width, 0);
-            ctx.scale(-1, 1);
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            // 创建缩小版本用于更快扫描（关键优化！）
-            const scanCanvas = document.createElement('canvas');
-            const scanSize = 800; // 缩小到800px，大幅提升扫描速度
-            const scale = scanSize / Math.max(canvas.width, canvas.height);
-            scanCanvas.width = canvas.width * scale;
-            scanCanvas.height = canvas.height * scale;
-            const scanCtx = scanCanvas.getContext('2d');
-            scanCtx.drawImage(canvas, 0, 0, scanCanvas.width, scanCanvas.height);
-            
-            const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
-
-            // 优化jsQR参数
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: "attemptBoth", // 尝试反转，提高识别率
-            });
-
-            if (code && !scanLocked) {
-                scanSuccessCount++;
-                
-                // 需要连续2次扫描到相同内容才确认（防止误识别）
-                if (scanSuccessCount < 2) {
-                    animationFrameId = requestAnimationFrame(scanLoop);
-                    return;
-                }
-                
-                const scannedData = code.data.trim();
-                scanHint.textContent = '✅ 扫码成功！';
-                
-                // 扫码成功视觉反馈
-                scanHint.style.color = '#00ff00';
-                setTimeout(() => {
-                    scanHint.style.color = '#00ff00';
-                }, 200);
-                
-                if (currentTarget === 1) {
-                    // 扫描物料码
-                    qr1RawValue = scannedData;
-                    qr1Extracted = extractMaterialCode(scannedData);
-                    
-                    qr1DataDiv.innerHTML = `物料号: <strong>${qr1Extracted}</strong>`;
-                    statusDiv.innerHTML = `✅ 物料码: ${qr1Extracted}<br>0.5秒后扫描振动盘...`;
-                    
-                    currentTarget = 2;
-                    scanLocked = true;
-                    scanSuccessCount = 0;
-                    
-                    // 缩短到0.5秒
-                    secondScanTimer = setTimeout(() => {
-                        scanLocked = false;
-                        scanHint.textContent = '将振动盘二维码对准框内';
-                        statusDiv.textContent = '🔍 请扫描振动盘二维码...';
-                        secondScanTimer = null;
-                    }, 500);
-                    
-                } else if (currentTarget === 2) {
-                    // 扫描振动盘码
-                    qr2Value = scannedData;
-                    qr2DataDiv.textContent = `振动盘码: ${qr2Value}`;
-                    scanLocked = true;
-                    scanSuccessCount = 0;
-                    
-                    if (qr1Extracted === qr2Value) {
-                        statusDiv.textContent = '✅ 匹配成功！自动继续...';
-                        scanHint.textContent = '✅ 匹配成功';
-                        vibrateDevice(50);
-                        
-                        setTimeout(() => {
-                            resetAll();
-                        }, 1000);
-                    } else {
-                        triggerMismatchWarning(qr1Extracted, qr2Value);
-                    }
-                }
-            }
-
-            animationFrameId = requestAnimationFrame(scanLoop);
-        }
-
-        async function startProcess() {
-            if (isRunning) return;
-            
-            const cameraReady = await startCamera();
-            if (!cameraReady) return;
-            
-            resetAll();
-            isRunning = true;
-            lastScanTime = 0;
-            animationFrameId = requestAnimationFrame(scanLoop);
-            startBtn.textContent = '运行中...';
-            startBtn.style.opacity = '0.6';
-        }
-
-        function manualReset() {
-            stopCamera();
-            resetAll();
-            isRunning = false;
-            startBtn.textContent = '开始扫码';
-            startBtn.style.opacity = '1';
-            statusDiv.textContent = '已刷新，准备重新开始';
-            scanHint.textContent = '将二维码对准框内';
-        }
-
-        startBtn.addEventListener('click', startProcess);
-        resetBtn.addEventListener('click', manualReset);
-
-        window.addEventListener('beforeunload', () => {
-            stopCamera();
+        scanBtn.addEventListener('click', () => {
+            if (isProcessing) return;
+            fileInput.click();
         });
+        
+        fileInput.addEventListener('change', handleFileSelect);
+        resetBtn.addEventListener('click', resetAll);
+
+        // 初始化
+        updateUI();
     </script>
 </body>
 </html>
