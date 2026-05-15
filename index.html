@@ -514,93 +514,102 @@
             if (zoomSupported) applyZoom(MIN_ZOOM);
         });
 
-        // ============ 扫码循环（核心：多角度识别） ============
+// ============ 扫码循环（智能角度策略） ============
 
-        function scanLoop() {
-            if (!isRunning) {
-                animationId = requestAnimationFrame(scanLoop);
-                return;
-            }
+function scanLoop() {
+    if (!isRunning) {
+        animationId = requestAnimationFrame(scanLoop);
+        return;
+    }
 
-            if (!video.videoWidth) {
-                animationId = requestAnimationFrame(scanLoop);
-                return;
-            }
+    if (!video.videoWidth) {
+        animationId = requestAnimationFrame(scanLoop);
+        return;
+    }
 
-            // 获取扫描框区域
-            const frameEl = document.querySelector('.scan-frame');
-            const frameRect = frameEl.getBoundingClientRect();
-            const containerRect = cameraContainer.getBoundingClientRect();
+    // 获取扫描框区域
+    const frameEl = document.querySelector('.scan-frame');
+    const frameRect = frameEl.getBoundingClientRect();
+    const containerRect = cameraContainer.getBoundingClientRect();
 
-            const scaleX = video.videoWidth / containerRect.width;
-            const scaleY = video.videoHeight / containerRect.height;
+    const scaleX = video.videoWidth / containerRect.width;
+    const scaleY = video.videoHeight / containerRect.height;
 
-            const sx = (frameRect.left - containerRect.left) * scaleX;
-            const sy = (frameRect.top - containerRect.top) * scaleY;
-            const sw = frameRect.width * scaleX;
-            const sh = frameRect.height * scaleY;
+    const sx = (frameRect.left - containerRect.left) * scaleX;
+    const sy = (frameRect.top - containerRect.top) * scaleY;
+    const sw = frameRect.width * scaleX;
+    const sh = frameRect.height * scaleY;
 
-            // 创建原图canvas
-            const srcCanvas = document.createElement('canvas');
-            srcCanvas.width = sw;
-            srcCanvas.height = sh;
-            const srcCtx = srcCanvas.getContext('2d');
-            srcCtx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+    // 创建原图canvas
+    const srcCanvas = document.createElement('canvas');
+    srcCanvas.width = sw;
+    srcCanvas.height = sh;
+    const srcCtx = srcCanvas.getContext('2d');
+    srcCtx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
-            // 缩放到500px
-            const SIZE = 500;
-            const ratio = Math.min(SIZE / sw, SIZE / sh);
-            const w = sw * ratio;
-            const h = sh * ratio;
+    // 缩放到500px
+    const SIZE = 500;
+    const ratio = Math.min(SIZE / sw, SIZE / sh);
+    const w = sw * ratio;
+    const h = sh * ratio;
 
-            const canvas = document.createElement('canvas');
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(srcCanvas, 0, 0, sw, sh, 0, 0, w, h);
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(srcCanvas, 0, 0, sw, sh, 0, 0, w, h);
 
-            // ★ 多角度尝试识别
-            let code = null;
-            const angles = [0, 15, -15, 30, -30, 45, -45, 60, -60];
+    // ★★★ 智能角度策略 ★★★
+    let angles;
+    if (currentStep === 1) {
+        // 物料码：通常水平放置，手机正常拿就行
+        // 0度优先，然后小角度倾斜
+        angles = [0, 180, 15, -15, 90, -90, 30, -30, 45, -45];
+    } else {
+        // 振动盘码：竖立放置，倒拿手机最快
+        // 180度优先！模拟手机倒过来扫
+        angles = [180, 0, 90, -90, 160, -160, 135, -135, 45, -45, 30, -30, 60, -60, 75, -75];
+    }
 
-            for (const angle of angles) {
-                let imageData;
-                if (angle === 0) {
-                    imageData = ctx.getImageData(0, 0, w, h);
-                } else {
-                    const rotated = rotateImage(canvas, angle);
-                    imageData = rotated.ctx.getImageData(0, 0, rotated.width, rotated.height);
-                }
-
-                code = jsQR(imageData.data, imageData.width, imageData.height, {
-                    inversionAttempts: 'attemptBoth',
-                });
-
-                if (code) break;
-            }
-
-            if (code && !scanLocked) {
-                const data = code.data.trim();
-
-                if (data === lastCode) {
-                    confirmCount++;
-                } else {
-                    confirmCount = 1;
-                    lastCode = data;
-                }
-
-                if (confirmCount >= 2) {
-                    handleScanSuccess(data);
-                    confirmCount = 0;
-                    lastCode = null;
-                }
-            } else if (!code) {
-                confirmCount = 0;
-                lastCode = null;
-            }
-
-            animationId = requestAnimationFrame(scanLoop);
+    let code = null;
+    for (const angle of angles) {
+        let imageData;
+        if (angle === 0) {
+            imageData = ctx.getImageData(0, 0, w, h);
+        } else {
+            const rotated = rotateImage(canvas, angle);
+            imageData = rotated.ctx.getImageData(0, 0, rotated.width, rotated.height);
         }
+
+        code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'attemptBoth',
+        });
+
+        if (code) break; // 找到了就停止
+    }
+
+    if (code && !scanLocked) {
+        const data = code.data.trim();
+
+        if (data === lastCode) {
+            confirmCount++;
+        } else {
+            confirmCount = 1;
+            lastCode = data;
+        }
+
+        if (confirmCount >= 2) {
+            handleScanSuccess(data);
+            confirmCount = 0;
+            lastCode = null;
+        }
+    } else if (!code) {
+        confirmCount = 0;
+        lastCode = null;
+    }
+
+    animationId = requestAnimationFrame(scanLoop);
+}
 
         // ============ 扫码成功处理 ============
 
