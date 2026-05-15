@@ -31,7 +31,6 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* 顶部状态 */
         .header {
             padding: 12px 16px;
             background: #111;
@@ -75,7 +74,6 @@
             text-align: right;
         }
 
-        /* 摄像头区域 */
         .camera-container {
             flex: 1;
             position: relative;
@@ -92,7 +90,6 @@
             object-fit: cover;
         }
 
-        /* 扫描框 */
         .scan-frame {
             position: absolute;
             top: 50%;
@@ -108,7 +105,6 @@
             z-index: 10;
         }
 
-        /* 半透明遮罩 */
         .scan-frame::before {
             content: '';
             position: absolute;
@@ -155,7 +151,6 @@
             border-radius: 0 0 6px 0;
         }
 
-        /* 扫描线 */
         .scan-line {
             position: absolute;
             left: 4px;
@@ -184,7 +179,6 @@
             }
         }
 
-        /* 缩放提示 */
         .zoom-hint {
             position: absolute;
             bottom: 16px;
@@ -200,7 +194,6 @@
             transition: opacity 0.5s;
         }
 
-        /* 底部信息 */
         .info-panel {
             padding: 10px 14px;
             background: #111;
@@ -231,7 +224,6 @@
             font-size: 11px;
         }
 
-        /* 按钮 */
         .btn-row {
             display: flex;
             gap: 8px;
@@ -267,7 +259,6 @@
             color: #fff;
         }
 
-        /* 匹配成功闪烁 */
         .flash-success {
             animation: flashGreen 0.5s ease-out;
         }
@@ -281,7 +272,6 @@
             }
         }
 
-        /* 不匹配红色闪烁 */
         .flash-error {
             animation: flashRed 0.3s ease-out 3;
         }
@@ -339,7 +329,7 @@
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js">
     </script>
     <script>
-        // ==================== 稳定版扫码引擎 ====================
+        // ==================== 扫码引擎（支持大角度） ====================
 
         const video = document.getElementById('video');
         const cameraContainer = document.getElementById('camera-container');
@@ -356,7 +346,7 @@
         let stream = null;
         let videoTrack = null;
         let isRunning = false;
-        let currentStep = 1; // 1=物料码, 2=振动盘
+        let currentStep = 1;
         let scanLocked = false;
         let materialCode = null;
         let vibratorCode = null;
@@ -383,6 +373,35 @@
             if (navigator.vibrate) navigator.vibrate(ms);
         }
 
+        // ============ 图像旋转 ============
+
+        function rotateImage(sourceCanvas, angle) {
+            const srcW = sourceCanvas.width;
+            const srcH = sourceCanvas.height;
+
+            const radians = (angle * Math.PI) / 180;
+            const cos = Math.abs(Math.cos(radians));
+            const sin = Math.abs(Math.sin(radians));
+            const newW = Math.ceil(srcW * cos + srcH * sin);
+            const newH = Math.ceil(srcW * sin + srcH * cos);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = newW;
+            canvas.height = newH;
+            const ctx = canvas.getContext('2d');
+
+            ctx.translate(newW / 2, newH / 2);
+            ctx.rotate(radians);
+            ctx.drawImage(sourceCanvas, -srcW / 2, -srcH / 2);
+
+            return {
+                canvas: canvas,
+                ctx: ctx,
+                width: newW,
+                height: newH,
+            };
+        }
+
         // ============ 摄像头 ============
 
         async function startCamera() {
@@ -398,7 +417,6 @@
                 video.srcObject = stream;
                 videoTrack = stream.getVideoTracks()[0];
 
-                // 检查变焦支持
                 const caps = videoTrack.getCapabilities();
                 if (caps.zoom) {
                     zoomSupported = true;
@@ -409,21 +427,17 @@
                     setTimeout(() => { zoomHint.style.opacity = '0.3'; }, 2000);
                 }
 
-                // 启用连续对焦
                 if (caps.focusMode) {
                     try {
                         await videoTrack.applyConstraints({
                             advanced: [{ focusMode: 'continuous' }],
                         });
-                    } catch (e) { /* 忽略 */ }
+                    } catch (e) { }
                 }
 
-                // 确保视频播放
                 await video.play();
                 return true;
             } catch (err) {
-                console.error('摄像头失败:', err);
-                // 降级
                 try {
                     stream = await navigator.mediaDevices.getUserMedia({
                         video: { facingMode: 'environment' },
@@ -464,7 +478,7 @@
                 zoomHint._t = setTimeout(() => {
                     zoomHint.style.opacity = '0.3';
                 }, 1500);
-            } catch (e) { /* 忽略 */ }
+            } catch (e) { }
         }
 
         // ============ 双指缩放 ============
@@ -496,12 +510,11 @@
             lastPinchDist = 0;
         });
 
-        // 双击重置焦距
         cameraBox.addEventListener('dblclick', () => {
             if (zoomSupported) applyZoom(MIN_ZOOM);
         });
 
-        // ============ 扫码循环 ============
+        // ============ 扫码循环（核心：多角度识别） ============
 
         function scanLoop() {
             if (!isRunning) {
@@ -527,25 +540,48 @@
             const sw = frameRect.width * scaleX;
             const sh = frameRect.height * scaleY;
 
-            // 只处理扫描框区域
-            const canvas = document.createElement('canvas');
-            const SIZE = 500; // 缩小到500px，速度极快
+            // 创建原图canvas
+            const srcCanvas = document.createElement('canvas');
+            srcCanvas.width = sw;
+            srcCanvas.height = sh;
+            const srcCtx = srcCanvas.getContext('2d');
+            srcCtx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+
+            // 缩放到500px
+            const SIZE = 500;
             const ratio = Math.min(SIZE / sw, SIZE / sh);
-            canvas.width = sw * ratio;
-            canvas.height = sh * ratio;
+            const w = sw * ratio;
+            const h = sh * ratio;
 
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(srcCanvas, 0, 0, sw, sh, 0, 0, w, h);
 
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: 'attemptBoth',
-            });
+            // ★ 多角度尝试识别
+            let code = null;
+            const angles = [0, 15, -15, 30, -30, 45, -45, 60, -60];
+
+            for (const angle of angles) {
+                let imageData;
+                if (angle === 0) {
+                    imageData = ctx.getImageData(0, 0, w, h);
+                } else {
+                    const rotated = rotateImage(canvas, angle);
+                    imageData = rotated.ctx.getImageData(0, 0, rotated.width, rotated.height);
+                }
+
+                code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: 'attemptBoth',
+                });
+
+                if (code) break;
+            }
 
             if (code && !scanLocked) {
                 const data = code.data.trim();
 
-                // 连续2次确认
                 if (data === lastCode) {
                     confirmCount++;
                 } else {
@@ -570,13 +606,11 @@
 
         function handleScanSuccess(data) {
             if (currentStep === 1) {
-                // 扫描物料码
                 materialCode = extractCode(data);
                 infoMaterial.textContent = materialCode;
                 statusText.textContent = '✅ 物料码已记录';
                 vibrate(30);
 
-                // 闪烁提示
                 cameraContainer.classList.add('flash-success');
                 setTimeout(() => cameraContainer.classList.remove('flash-success'), 500);
 
@@ -584,7 +618,6 @@
                 scanLocked = true;
                 updateDots();
 
-                // 0.4秒后解锁扫描振动盘
                 unlockTimer = setTimeout(() => {
                     scanLocked = false;
                     statusText.textContent = '🔍 对准振动盘码';
@@ -592,25 +625,20 @@
                 }, 400);
 
             } else if (currentStep === 2) {
-                // 扫描振动盘码
                 vibratorCode = data;
                 infoVibrator.textContent = vibratorCode;
                 scanLocked = true;
 
                 if (materialCode === vibratorCode) {
-                    // ✅ 匹配成功
                     statusText.textContent = '✅ 匹配成功！继续...';
                     vibrate(50);
                     cameraContainer.classList.add('flash-success');
                     setTimeout(() => cameraContainer.classList.remove('flash-success'), 500);
 
-                    // 0.6秒后自动重置继续
                     setTimeout(() => {
                         resetForNext();
                     }, 600);
-
                 } else {
-                    // ❌ 不匹配
                     statusText.textContent = '❌ 不匹配！';
                     vibrate([200, 100, 200, 100, 200, 100, 500]);
                     cameraContainer.classList.add('flash-error');
@@ -619,7 +647,6 @@
                     dot2.classList.add('done');
                     dot2.classList.remove('active');
 
-                    // 3秒后重置
                     setTimeout(() => {
                         resetForNext();
                     }, 3000);
@@ -692,21 +719,17 @@
             fullReset();
         });
 
-        // 页面卸载
         window.addEventListener('beforeunload', () => {
             stopCamera();
         });
 
-        // 页面隐藏时暂停，回来时恢复
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-                // 暂停扫描循环，但保持摄像头
                 if (animationId) {
                     cancelAnimationFrame(animationId);
                     animationId = null;
                 }
             } else {
-                // 恢复扫描
                 if (isRunning && !animationId) {
                     animationId = requestAnimationFrame(scanLoop);
                 }
