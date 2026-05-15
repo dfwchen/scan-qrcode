@@ -2,55 +2,88 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#000000">
-    <title>扫码对比工具</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
+    <title>扫码对比工具</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             background: #000;
             color: #fff;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             height: 100vh;
+            height: 100dvh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
             touch-action: manipulation;
             -webkit-user-select: none;
             user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
-        
+
+        /* 顶部状态 */
         .header {
-            padding: 20px 15px 15px;
-            text-align: center;
-            background: linear-gradient(180deg, rgba(0,0,0,0.95), rgba(0,0,0,0.8));
-            z-index: 10;
+            padding: 12px 16px;
+            background: #111;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
-        
-        .title {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 4px;
+
+        .step-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
-        
-        .subtitle {
+
+        .step-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #333;
+            transition: all 0.3s;
+        }
+
+        .step-dot.active {
+            background: #00e676;
+            box-shadow: 0 0 10px #00e676;
+        }
+
+        .step-dot.done {
+            background: #00c853;
+        }
+
+        .step-arrow {
+            color: #555;
+            font-size: 12px;
+        }
+
+        .status-text {
             font-size: 13px;
-            color: #999;
+            color: #ccc;
+            text-align: right;
         }
-        
-        .scan-area {
+
+        /* 摄像头区域 */
+        .camera-container {
             flex: 1;
             position: relative;
             overflow: hidden;
-            background: #111;
+            background: #000;
         }
-        
-        #camera-view {
+
+        #video {
             position: absolute;
             top: 0;
             left: 0;
@@ -58,196 +91,627 @@
             height: 100%;
             object-fit: cover;
         }
-        
-        /* AI自动框 - 模拟微信的绿色框 */
-        .auto-frame {
+
+        /* 扫描框 */
+        .scan-frame {
             position: absolute;
-            border: 2px solid #00c853;
-            border-radius: 8px;
-            box-shadow: 0 0 20px rgba(0, 200, 83, 0.3);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70vw;
+            height: 70vw;
+            max-width: 260px;
+            max-height: 260px;
+            border: 2px solid rgba(0, 230, 118, 0.6);
+            border-radius: 16px;
             pointer-events: none;
-            z-index: 5;
-            transition: all 0.3s ease-out;
-            opacity: 0;
+            z-index: 10;
         }
-        
-        .auto-frame.detected {
-            opacity: 1;
+
+        /* 半透明遮罩 */
+        .scan-frame::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            border-radius: 16px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+            pointer-events: none;
         }
-        
+
+        .corner {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-color: #00e676;
+            border-style: solid;
+            z-index: 11;
+        }
+
+        .corner-tl {
+            top: -2px;
+            left: -2px;
+            border-width: 4px 0 0 4px;
+            border-radius: 6px 0 0 0;
+        }
+        .corner-tr {
+            top: -2px;
+            right: -2px;
+            border-width: 4px 4px 0 0;
+            border-radius: 0 6px 0 0;
+        }
+        .corner-bl {
+            bottom: -2px;
+            left: -2px;
+            border-width: 0 0 4px 4px;
+            border-radius: 0 0 0 6px;
+        }
+        .corner-br {
+            bottom: -2px;
+            right: -2px;
+            border-width: 0 4px 4px 0;
+            border-radius: 0 0 6px 0;
+        }
+
+        /* 扫描线 */
         .scan-line {
             position: absolute;
-            left: 0;
-            right: 0;
+            left: 4px;
+            right: 4px;
             height: 2px;
-            background: linear-gradient(90deg, transparent, #00e676, transparent);
-            animation: scanDown 2s ease-in-out infinite;
-            pointer-events: none;
-            z-index: 6;
+            background: #00e676;
+            box-shadow: 0 0 8px #00e676;
+            animation: scanMove 1.8s ease-in-out infinite;
+            z-index: 12;
         }
-        
-        @keyframes scanDown {
-            0% { top: 0; opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 1; }
-            100% { top: 100%; opacity: 0; }
+
+        @keyframes scanMove {
+            0% {
+                top: 8px;
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                top: calc(100% - 8px);
+                opacity: 0;
+            }
         }
-        
-        .status-overlay {
+
+        /* 缩放提示 */
+        .zoom-hint {
             position: absolute;
-            top: 20px;
+            bottom: 16px;
             left: 50%;
             transform: translateX(-50%);
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-            z-index: 10;
+            background: rgba(0, 0, 0, 0.75);
+            color: #00e676;
+            padding: 6px 16px;
+            border-radius: 16px;
+            font-size: 12px;
+            z-index: 20;
             pointer-events: none;
-            transition: all 0.3s;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            transition: opacity 0.5s;
         }
-        
-        .status-info { background: rgba(0,0,0,0.7); color: #fff; }
-        .status-success { background: rgba(0,200,83,0.8); color: #fff; }
-        .status-error { background: rgba(255,0,0,0.8); color: #fff; }
-        
+
+        /* 底部信息 */
         .info-panel {
-            padding: 15px;
-            background: rgba(0,0,0,0.95);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            z-index: 10;
+            padding: 10px 14px;
+            background: #111;
+            z-index: 100;
         }
-        
+
         .info-row {
             display: flex;
-            align-items: center;
-            padding: 10px;
-            margin: 5px 0;
-            background: rgba(255,255,255,0.08);
+            padding: 8px 12px;
+            margin: 3px 0;
+            background: #1a1a1a;
             border-radius: 10px;
-            font-size: 13px;
+            font-size: 12px;
+            align-items: center;
         }
-        
+
         .info-label {
-            color: #999;
-            min-width: 60px;
+            color: #888;
+            min-width: 48px;
+            font-size: 11px;
         }
-        
+
         .info-value {
             color: #00e676;
-            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+            font-family: monospace;
             flex: 1;
             word-break: break-all;
+            font-size: 11px;
         }
-        
-        .btn-panel {
-            display: flex;
-            gap: 10px;
-            padding: 10px 15px 25px;
-            background: rgba(0,0,0,0.95);
-            z-index: 10;
-        }
-        
-        .btn {
-            flex: 1;
-            padding: 14px;
-            border: none;
-            border-radius: 25px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            letter-spacing: 0.5px;
-        }
-        
-        .btn:active {
-            transform: scale(0.96);
-        }
-        
-        .btn-start {
-            background: linear-gradient(135deg, #00c853, #00e676);
-            color: #000;
-        }
-        
-        .btn-reset {
-            background: rgba(255,255,255,0.15);
-            color: #fff;
-        }
-        
-        .progress-dots {
+
+        /* 按钮 */
+        .btn-row {
             display: flex;
             gap: 8px;
-            align-items: center;
+            padding: 8px 14px 20px;
+            background: #111;
+            z-index: 100;
         }
-        
-        .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.3);
-            transition: all 0.3s;
+
+        .btn {
+            flex: 1;
+            padding: 13px;
+            border: none;
+            border-radius: 24px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            letter-spacing: 0.3px;
         }
-        
-        .dot.active {
-            background: #00e676;
-            box-shadow: 0 0 10px #00e676;
-            width: 10px;
-            height: 10px;
+
+        .btn:active {
+            transform: scale(0.96);
+            opacity: 0.9;
         }
-        
-        .dot.done {
+
+        .btn-start {
             background: #00c853;
+            color: #000;
         }
-        
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+
+        .btn-reset {
+            background: #333;
+            color: #fff;
+        }
+
+        /* 匹配成功闪烁 */
+        .flash-success {
+            animation: flashGreen 0.5s ease-out;
+        }
+
+        @keyframes flashGreen {
+            0% {
+                background: rgba(0, 230, 118, 0.6);
+            }
+            100% {
+                background: transparent;
+            }
+        }
+
+        /* 不匹配红色闪烁 */
+        .flash-error {
+            animation: flashRed 0.3s ease-out 3;
+        }
+
+        @keyframes flashRed {
+            0%,
+            100% {
+                background: transparent;
+            }
+            50% {
+                background: rgba(255, 0, 0, 0.5);
+            }
         }
     </style>
 </head>
 <body>
+
     <div class="header">
-        <div class="title">二维码对比工具</div>
-        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px;">
-            <div class="progress-dots">
-                <div class="dot active" id="dot1"></div>
-                <span style="color:#555;">→</span>
-                <div class="dot" id="dot2"></div>
-            </div>
+        <div class="step-indicator">
+            <div class="step-dot active" id="dot1"></div>
+            <span class="step-arrow">→</span>
+            <div class="step-dot" id="dot2"></div>
         </div>
+        <div class="status-text" id="status-text">准备就绪</div>
     </div>
-    
-    <div class="scan-area" id="scan-area">
-        <video id="camera-view" autoplay playsinline muted></video>
-        <div class="auto-frame" id="auto-frame">
+
+    <div class="camera-container" id="camera-container">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="scan-frame">
+            <div class="corner corner-tl"></div>
+            <div class="corner corner-tr"></div>
+            <div class="corner corner-bl"></div>
+            <div class="corner corner-br"></div>
             <div class="scan-line"></div>
         </div>
-        <div class="status-overlay status-info" id="status-overlay">
-            📱 对准物料码
-        </div>
+        <div class="zoom-hint" id="zoom-hint">双指缩放调焦</div>
     </div>
-    
+
     <div class="info-panel">
         <div class="info-row">
             <span class="info-label">物料码</span>
-            <span class="info-value" id="info-material">等待扫描...</span>
+            <span class="info-value" id="info-material">等待扫描</span>
         </div>
         <div class="info-row">
             <span class="info-label">振动盘</span>
-            <span class="info-value" id="info-vibrator">等待扫描...</span>
+            <span class="info-value" id="info-vibrator">等待扫描</span>
         </div>
     </div>
-    
-    <div class="btn-panel">
+
+    <div class="btn-row">
         <button class="btn btn-start" id="btn-start">▶ 开始扫描</button>
         <button class="btn btn-reset" id="btn-reset">↺ 重置</button>
     </div>
 
-    <!-- 使用ZXing库，识别率更高 -->
-    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
-    <script src="scanner.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js">
+    </script>
+    <script>
+        // ==================== 稳定版扫码引擎 ====================
+
+        const video = document.getElementById('video');
+        const cameraContainer = document.getElementById('camera-container');
+        const statusText = document.getElementById('status-text');
+        const infoMaterial = document.getElementById('info-material');
+        const infoVibrator = document.getElementById('info-vibrator');
+        const zoomHint = document.getElementById('zoom-hint');
+        const dot1 = document.getElementById('dot1');
+        const dot2 = document.getElementById('dot2');
+        const btnStart = document.getElementById('btn-start');
+        const btnReset = document.getElementById('btn-reset');
+        const cameraBox = document.getElementById('camera-container');
+
+        let stream = null;
+        let videoTrack = null;
+        let isRunning = false;
+        let currentStep = 1; // 1=物料码, 2=振动盘
+        let scanLocked = false;
+        let materialCode = null;
+        let vibratorCode = null;
+        let animationId = null;
+        let confirmCount = 0;
+        let lastCode = null;
+        let unlockTimer = null;
+
+        // 变焦
+        let currentZoom = 1;
+        const MIN_ZOOM = 1;
+        const MAX_ZOOM = 5;
+        let zoomSupported = false;
+        let lastPinchDist = 0;
+
+        // ============ 工具函数 ============
+
+        function extractCode(raw) {
+            const idx = raw.toUpperCase().lastIndexOf('P');
+            return idx === -1 ? raw : raw.substring(idx);
+        }
+
+        function vibrate(ms) {
+            if (navigator.vibrate) navigator.vibrate(ms);
+        }
+
+        // ============ 摄像头 ============
+
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1920 },
+                    },
+                });
+
+                video.srcObject = stream;
+                videoTrack = stream.getVideoTracks()[0];
+
+                // 检查变焦支持
+                const caps = videoTrack.getCapabilities();
+                if (caps.zoom) {
+                    zoomSupported = true;
+                    currentZoom = caps.zoom.min || 1;
+                    zoomHint.textContent = '双指缩放调焦';
+                } else {
+                    zoomHint.textContent = '设备不支持变焦';
+                    setTimeout(() => { zoomHint.style.opacity = '0.3'; }, 2000);
+                }
+
+                // 启用连续对焦
+                if (caps.focusMode) {
+                    try {
+                        await videoTrack.applyConstraints({
+                            advanced: [{ focusMode: 'continuous' }],
+                        });
+                    } catch (e) { /* 忽略 */ }
+                }
+
+                // 确保视频播放
+                await video.play();
+                return true;
+            } catch (err) {
+                console.error('摄像头失败:', err);
+                // 降级
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'environment' },
+                    });
+                    video.srcObject = stream;
+                    videoTrack = stream.getVideoTracks()[0];
+                    await video.play();
+                    return true;
+                } catch (e2) {
+                    return false;
+                }
+            }
+        }
+
+        function stopCamera() {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            if (stream) {
+                stream.getTracks().forEach(t => t.stop());
+                stream = null;
+                videoTrack = null;
+            }
+            video.srcObject = null;
+        }
+
+        async function applyZoom(zoom) {
+            if (!videoTrack || !zoomSupported) return;
+            currentZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
+            try {
+                await videoTrack.applyConstraints({
+                    advanced: [{ zoom: currentZoom }],
+                });
+                zoomHint.textContent = `焦距 ${currentZoom.toFixed(1)}x`;
+                zoomHint.style.opacity = '1';
+                clearTimeout(zoomHint._t);
+                zoomHint._t = setTimeout(() => {
+                    zoomHint.style.opacity = '0.3';
+                }, 1500);
+            } catch (e) { /* 忽略 */ }
+        }
+
+        // ============ 双指缩放 ============
+
+        cameraBox.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2 && zoomSupported) {
+                e.preventDefault();
+                lastPinchDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+            }
+        }, { passive: false });
+
+        cameraBox.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2 && zoomSupported && lastPinchDist > 0) {
+                e.preventDefault();
+                const dist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                const scale = dist / lastPinchDist;
+                applyZoom(currentZoom * scale);
+                lastPinchDist = dist;
+            }
+        }, { passive: false });
+
+        cameraBox.addEventListener('touchend', () => {
+            lastPinchDist = 0;
+        });
+
+        // 双击重置焦距
+        cameraBox.addEventListener('dblclick', () => {
+            if (zoomSupported) applyZoom(MIN_ZOOM);
+        });
+
+        // ============ 扫码循环 ============
+
+        function scanLoop() {
+            if (!isRunning) {
+                animationId = requestAnimationFrame(scanLoop);
+                return;
+            }
+
+            if (!video.videoWidth) {
+                animationId = requestAnimationFrame(scanLoop);
+                return;
+            }
+
+            // 获取扫描框区域
+            const frameEl = document.querySelector('.scan-frame');
+            const frameRect = frameEl.getBoundingClientRect();
+            const containerRect = cameraContainer.getBoundingClientRect();
+
+            const scaleX = video.videoWidth / containerRect.width;
+            const scaleY = video.videoHeight / containerRect.height;
+
+            const sx = (frameRect.left - containerRect.left) * scaleX;
+            const sy = (frameRect.top - containerRect.top) * scaleY;
+            const sw = frameRect.width * scaleX;
+            const sh = frameRect.height * scaleY;
+
+            // 只处理扫描框区域
+            const canvas = document.createElement('canvas');
+            const SIZE = 500; // 缩小到500px，速度极快
+            const ratio = Math.min(SIZE / sw, SIZE / sh);
+            canvas.width = sw * ratio;
+            canvas.height = sh * ratio;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: 'attemptBoth',
+            });
+
+            if (code && !scanLocked) {
+                const data = code.data.trim();
+
+                // 连续2次确认
+                if (data === lastCode) {
+                    confirmCount++;
+                } else {
+                    confirmCount = 1;
+                    lastCode = data;
+                }
+
+                if (confirmCount >= 2) {
+                    handleScanSuccess(data);
+                    confirmCount = 0;
+                    lastCode = null;
+                }
+            } else if (!code) {
+                confirmCount = 0;
+                lastCode = null;
+            }
+
+            animationId = requestAnimationFrame(scanLoop);
+        }
+
+        // ============ 扫码成功处理 ============
+
+        function handleScanSuccess(data) {
+            if (currentStep === 1) {
+                // 扫描物料码
+                materialCode = extractCode(data);
+                infoMaterial.textContent = materialCode;
+                statusText.textContent = '✅ 物料码已记录';
+                vibrate(30);
+
+                // 闪烁提示
+                cameraContainer.classList.add('flash-success');
+                setTimeout(() => cameraContainer.classList.remove('flash-success'), 500);
+
+                currentStep = 2;
+                scanLocked = true;
+                updateDots();
+
+                // 0.4秒后解锁扫描振动盘
+                unlockTimer = setTimeout(() => {
+                    scanLocked = false;
+                    statusText.textContent = '🔍 对准振动盘码';
+                    unlockTimer = null;
+                }, 400);
+
+            } else if (currentStep === 2) {
+                // 扫描振动盘码
+                vibratorCode = data;
+                infoVibrator.textContent = vibratorCode;
+                scanLocked = true;
+
+                if (materialCode === vibratorCode) {
+                    // ✅ 匹配成功
+                    statusText.textContent = '✅ 匹配成功！继续...';
+                    vibrate(50);
+                    cameraContainer.classList.add('flash-success');
+                    setTimeout(() => cameraContainer.classList.remove('flash-success'), 500);
+
+                    // 0.6秒后自动重置继续
+                    setTimeout(() => {
+                        resetForNext();
+                    }, 600);
+
+                } else {
+                    // ❌ 不匹配
+                    statusText.textContent = '❌ 不匹配！';
+                    vibrate([200, 100, 200, 100, 200, 100, 500]);
+                    cameraContainer.classList.add('flash-error');
+                    setTimeout(() => cameraContainer.classList.remove('flash-error'), 1000);
+
+                    dot2.classList.add('done');
+                    dot2.classList.remove('active');
+
+                    // 3秒后重置
+                    setTimeout(() => {
+                        resetForNext();
+                    }, 3000);
+                }
+            }
+        }
+
+        // ============ 重置 ============
+
+        function resetForNext() {
+            materialCode = null;
+            vibratorCode = null;
+            currentStep = 1;
+            scanLocked = false;
+            confirmCount = 0;
+            lastCode = null;
+
+            if (unlockTimer) {
+                clearTimeout(unlockTimer);
+                unlockTimer = null;
+            }
+
+            infoMaterial.textContent = '等待扫描';
+            infoVibrator.textContent = '等待扫描';
+            statusText.textContent = '📱 对准物料码';
+            updateDots();
+        }
+
+        function fullReset() {
+            stopCamera();
+            isRunning = false;
+            resetForNext();
+            statusText.textContent = '准备就绪';
+            btnStart.textContent = '▶ 开始扫描';
+            btnStart.style.opacity = '1';
+            zoomHint.style.opacity = '1';
+        }
+
+        function updateDots() {
+            if (currentStep === 1) {
+                dot1.className = 'step-dot active';
+                dot2.className = 'step-dot';
+            } else {
+                dot1.className = 'step-dot done';
+                dot2.className = 'step-dot active';
+            }
+        }
+
+        // ============ 按钮 ============
+
+        btnStart.addEventListener('click', async () => {
+            if (isRunning) return;
+
+            const ok = await startCamera();
+            if (!ok) {
+                statusText.textContent = '❌ 摄像头不可用';
+                return;
+            }
+
+            isRunning = true;
+            resetForNext();
+            animationId = requestAnimationFrame(scanLoop);
+
+            btnStart.textContent = '⏺ 扫描中';
+            btnStart.style.opacity = '0.7';
+            statusText.textContent = '📱 对准物料码';
+        });
+
+        btnReset.addEventListener('click', () => {
+            fullReset();
+        });
+
+        // 页面卸载
+        window.addEventListener('beforeunload', () => {
+            stopCamera();
+        });
+
+        // 页面隐藏时暂停，回来时恢复
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // 暂停扫描循环，但保持摄像头
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                    animationId = null;
+                }
+            } else {
+                // 恢复扫描
+                if (isRunning && !animationId) {
+                    animationId = requestAnimationFrame(scanLoop);
+                }
+            }
+        });
+    </script>
 </body>
 </html>
