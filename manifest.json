@@ -1,7 +1,7 @@
 {
     "name": "二维码对比工具",
     "short_name": "扫码对比",
-    "description": "快速扫描对比二维码",
+    "description": "快速扫描对比物料二维码",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#000000",
