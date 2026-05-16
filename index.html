@@ -273,16 +273,15 @@
         }
 
         .flash-error {
-            animation: flashRed 0.3s ease-out 3;
+            animation: flashRed 0.5s ease-out 6;
         }
 
         @keyframes flashRed {
-            0%,
-            100% {
+            0%, 100% {
                 background: transparent;
             }
             50% {
-                background: rgba(255, 0, 0, 0.5);
+                background: rgba(255, 0, 0, 0.8);
             }
         }
     </style>
@@ -369,13 +368,9 @@
             return idx === -1 ? raw : raw.substring(idx);
         }
 
-        function vibrate(pattern) {
+        function vibrate(ms) {
             if (navigator.vibrate) {
-                if (Array.isArray(pattern)) {
-                    navigator.vibrate(pattern);
-                } else {
-                    navigator.vibrate([pattern]);
-                }
+                navigator.vibrate(ms);
             }
         }
 
@@ -641,15 +636,20 @@
                         resetForNext();
                     }, 600);
                 } else {
-                    statusText.textContent = '❌ 不匹配！停止投料！';
-                    vibrate([200, 100, 200, 100, 200, 100, 500]);
+                    statusText.textContent = '❌ 不匹配！';
+                    
+                    // 单次长震动
+                    vibrate(500);
+                    
+                    // 全屏红色闪动
                     cameraContainer.classList.add('flash-error');
-                    setTimeout(() => cameraContainer.classList.remove('flash-error'), 1000);
-
+                    
                     dot2.classList.add('done');
                     dot2.classList.remove('active');
 
+                    // 3秒后重置
                     setTimeout(() => {
+                        cameraContainer.classList.remove('flash-error');
                         resetForNext();
                     }, 3000);
                 }
