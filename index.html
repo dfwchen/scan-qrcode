@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#000000">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <title>永浪有限公司</title>
+    <title>扫码对比工具</title>
     <style>
         * {
             margin: 0;
@@ -32,12 +32,13 @@
         }
 
         .header {
-            padding: 12px 16px;
+            padding: 10px 16px;
             background: #111;
             z-index: 100;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            min-height: 44px;
         }
 
         .step-indicator {
@@ -68,10 +69,29 @@
             font-size: 12px;
         }
 
+        /* 大号状态文字 */
         .status-text {
-            font-size: 13px;
-            color: #ccc;
+            font-size: 22px;
+            font-weight: 700;
             text-align: right;
+            transition: all 0.3s;
+            letter-spacing: 1px;
+        }
+
+        .status-text.success {
+            color: #00e676;
+            font-size: 28px;
+        }
+
+        .status-text.error {
+            color: #ff1744;
+            font-size: 28px;
+            animation: statusPulse 0.5s ease-out 6;
+        }
+
+        @keyframes statusPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
         }
 
         .camera-container {
@@ -374,6 +394,17 @@
             }
         }
 
+        // 设置状态文字样式
+        function setStatus(text, type) {
+            statusText.textContent = text;
+            statusText.classList.remove('success', 'error');
+            if (type === 'success') {
+                statusText.classList.add('success');
+            } else if (type === 'error') {
+                statusText.classList.add('error');
+            }
+        }
+
         // ============ 图像旋转 ============
 
         function rotateImage(sourceCanvas, angle) {
@@ -605,7 +636,7 @@
             if (currentStep === 1) {
                 materialCode = extractCode(data);
                 infoMaterial.textContent = materialCode;
-                statusText.textContent = '✅ 物料码已记录';
+                setStatus('✅ 已记录', 'success');
                 vibrate(30);
 
                 cameraContainer.classList.add('flash-success');
@@ -617,9 +648,9 @@
 
                 unlockTimer = setTimeout(() => {
                     scanLocked = false;
-                    statusText.textContent = '🔍 对准振动盘码';
+                    setStatus('对准振动盘', '');
                     unlockTimer = null;
-                }, 400);
+                }, 500);
 
             } else if (currentStep === 2) {
                 vibratorCode = data;
@@ -627,27 +658,24 @@
                 scanLocked = true;
 
                 if (materialCode === vibratorCode) {
-                    statusText.textContent = '✅ 匹配成功！继续...';
+                    // 匹配成功 - 绿色大字 OK
+                    setStatus('OK', 'success');
                     vibrate(50);
                     cameraContainer.classList.add('flash-success');
                     setTimeout(() => cameraContainer.classList.remove('flash-success'), 500);
 
                     setTimeout(() => {
                         resetForNext();
-                    }, 600);
+                    }, 800);
                 } else {
-                    statusText.textContent = '❌ 不匹配！';
-                    
-                    // 单次长震动
+                    // 不匹配 - 红色大字 NG + 震动 + 全屏闪红
+                    setStatus('NG', 'error');
                     vibrate(500);
-                    
-                    // 全屏红色闪动
                     cameraContainer.classList.add('flash-error');
-                    
+
                     dot2.classList.add('done');
                     dot2.classList.remove('active');
 
-                    // 3秒后重置
                     setTimeout(() => {
                         cameraContainer.classList.remove('flash-error');
                         resetForNext();
@@ -673,7 +701,7 @@
 
             infoMaterial.textContent = '等待扫描';
             infoVibrator.textContent = '等待扫描';
-            statusText.textContent = '📱 对准物料码';
+            setStatus('对准物料码', '');
             updateDots();
         }
 
@@ -681,7 +709,7 @@
             stopCamera();
             isRunning = false;
             resetForNext();
-            statusText.textContent = '准备就绪';
+            setStatus('准备就绪', '');
             btnStart.textContent = '▶ 开始扫描';
             btnStart.style.opacity = '1';
             zoomHint.style.opacity = '1';
@@ -704,7 +732,7 @@
 
             const ok = await startCamera();
             if (!ok) {
-                statusText.textContent = '❌ 摄像头不可用';
+                setStatus('摄像头不可用', 'error');
                 return;
             }
 
@@ -714,7 +742,7 @@
 
             btnStart.textContent = '⏺ 扫描中';
             btnStart.style.opacity = '0.7';
-            statusText.textContent = '📱 对准物料码';
+            setStatus('对准物料码', '');
         });
 
         btnReset.addEventListener('click', () => {
