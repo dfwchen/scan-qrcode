@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#000000">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <title>扫码对比工具</title>
+    <title>永浪有限公司</title>
     <style>
         * {
             margin: 0;
@@ -98,7 +98,7 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 30vw;
+            font-size: 40vw;
             font-weight: 900;
             pointer-events: none;
             z-index: 50;
@@ -256,26 +256,28 @@
 
         .info-row {
             display: flex;
-            padding: 8px 12px;
-            margin: 3px 0;
+            padding: 12px 14px;
+            margin: 4px 0;
             background: #1a1a1a;
             border-radius: 10px;
-            font-size: 12px;
+            font-size: 36px;
             align-items: center;
         }
 
         .info-label {
-            color: #888;
-            min-width: 48px;
-            font-size: 11px;
+            color: #fff;
+            min-width: 100px;
+            font-size: 36px;
+            font-weight: 700;
         }
 
         .info-value {
-            color: #00e676;
+            color: #fff;
             font-family: monospace;
             flex: 1;
             word-break: break-all;
-            font-size: 11px;
+            font-size: 36px;
+            font-weight: 700;
         }
 
         .btn-row {
@@ -408,6 +410,9 @@
         const MAX_ZOOM = 5;
         let zoomSupported = false;
         let lastPinchDist = 0;
+
+        // 扫码间隔（毫秒）
+        const SCAN_INTERVAL = 3000;
 
         // ============ 工具函数 ============
 
@@ -674,11 +679,12 @@
                 scanLocked = true;
                 updateDots();
 
+                // 3秒后解锁扫描振动盘
                 unlockTimer = setTimeout(() => {
                     scanLocked = false;
                     statusText.textContent = '对准振动盘码';
                     unlockTimer = null;
-                }, 400);
+                }, SCAN_INTERVAL);
 
             } else if (currentStep === 2) {
                 vibratorCode = data;
@@ -686,20 +692,19 @@
                 scanLocked = true;
 
                 if (materialCode === vibratorCode) {
-                    // ✅ 匹配成功 - 半屏绿色 OK
                     statusText.textContent = '✅ 匹配成功！';
                     showBigResult('OK', 'ok');
                     vibrate(50);
                     cameraContainer.classList.add('flash-success');
                     setTimeout(() => cameraContainer.classList.remove('flash-success'), 300);
 
+                    // 3秒后重置继续
                     setTimeout(() => {
                         hideBigResult();
                         resetForNext();
-                    }, 800);
+                    }, SCAN_INTERVAL);
 
                 } else {
-                    // ❌ 不匹配 - 半屏红色 NG
                     statusText.textContent = '❌ 不匹配！';
                     showBigResult('NG', 'ng');
                     vibrate(500);
@@ -708,11 +713,12 @@
                     dot2.classList.add('done');
                     dot2.classList.remove('active');
 
+                    // 3秒后重置
                     setTimeout(() => {
                         cameraContainer.classList.remove('flash-error');
                         hideBigResult();
                         resetForNext();
-                    }, 3000);
+                    }, SCAN_INTERVAL);
                 }
             }
         }
