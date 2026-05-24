@@ -92,7 +92,6 @@
             object-fit: cover;
         }
 
-        /* 超大结果文字 - 占半屏 */
         .big-result {
             position: absolute;
             top: 50%;
@@ -256,18 +255,18 @@
 
         .info-row {
             display: flex;
-            padding: 12px 14px;
+            padding: 10px 14px;
             margin: 4px 0;
             background: #1a1a1a;
             border-radius: 10px;
-            font-size: 36px;
+            font-size: 30px;
             align-items: center;
         }
 
         .info-label {
             color: #fff;
-            min-width: 100px;
-            font-size: 36px;
+            min-width: 90px;
+            font-size: 30px;
             font-weight: 700;
         }
 
@@ -276,7 +275,7 @@
             font-family: monospace;
             flex: 1;
             word-break: break-all;
-            font-size: 36px;
+            font-size: 30px;
             font-weight: 700;
         }
 
@@ -325,7 +324,7 @@
         }
 
         .flash-error {
-            animation: flashRed 0.5s ease-out 6;
+            animation: flashRed 0.5s ease-out 10;
         }
 
         @keyframes flashRed {
@@ -411,8 +410,8 @@
         let zoomSupported = false;
         let lastPinchDist = 0;
 
-        // 扫码间隔（毫秒）
-        const SCAN_INTERVAL = 3000;
+        // 自动循环间隔（毫秒）
+        const CYCLE_INTERVAL = 5000;
 
         // ============ 工具函数 ============
 
@@ -427,7 +426,6 @@
             }
         }
 
-        // 显示超大结果文字
         function showBigResult(text, type) {
             bigResult.textContent = text;
             bigResult.className = 'big-result ' + type + ' show';
@@ -679,12 +677,12 @@
                 scanLocked = true;
                 updateDots();
 
-                // 3秒后解锁扫描振动盘
+                // 5秒后解锁扫描振动盘
                 unlockTimer = setTimeout(() => {
                     scanLocked = false;
                     statusText.textContent = '对准振动盘码';
                     unlockTimer = null;
-                }, SCAN_INTERVAL);
+                }, CYCLE_INTERVAL);
 
             } else if (currentStep === 2) {
                 vibratorCode = data;
@@ -698,11 +696,11 @@
                     cameraContainer.classList.add('flash-success');
                     setTimeout(() => cameraContainer.classList.remove('flash-success'), 300);
 
-                    // 3秒后重置继续
+                    // 5秒后重置继续
                     setTimeout(() => {
                         hideBigResult();
                         resetForNext();
-                    }, SCAN_INTERVAL);
+                    }, CYCLE_INTERVAL);
 
                 } else {
                     statusText.textContent = '❌ 不匹配！';
@@ -713,12 +711,12 @@
                     dot2.classList.add('done');
                     dot2.classList.remove('active');
 
-                    // 3秒后重置
+                    // 5秒后重置
                     setTimeout(() => {
                         cameraContainer.classList.remove('flash-error');
                         hideBigResult();
                         resetForNext();
-                    }, SCAN_INTERVAL);
+                    }, CYCLE_INTERVAL);
                 }
             }
         }
