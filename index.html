@@ -39,6 +39,7 @@
             align-items: center;
             justify-content: space-between;
             min-height: 44px;
+            position: relative;
         }
 
         .step-indicator {
@@ -69,29 +70,10 @@
             font-size: 12px;
         }
 
-        /* 大号状态文字 */
         .status-text {
-            font-size: 22px;
-            font-weight: 700;
+            font-size: 14px;
+            color: #ccc;
             text-align: right;
-            transition: all 0.3s;
-            letter-spacing: 1px;
-        }
-
-        .status-text.success {
-            color: #00e676;
-            font-size: 28px;
-        }
-
-        .status-text.error {
-            color: #ff1744;
-            font-size: 28px;
-            animation: statusPulse 0.5s ease-out 6;
-        }
-
-        @keyframes statusPulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.2); }
         }
 
         .camera-container {
@@ -108,6 +90,58 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+        }
+
+        /* 超大结果文字 - 占半屏 */
+        .big-result {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 30vw;
+            font-weight: 900;
+            pointer-events: none;
+            z-index: 50;
+            text-align: center;
+            opacity: 0;
+            transition: all 0.2s;
+            text-shadow: 0 0 40px currentColor;
+            letter-spacing: 5px;
+        }
+
+        .big-result.show {
+            opacity: 1;
+            animation: resultPop 0.4s ease-out;
+        }
+
+        .big-result.ok {
+            color: #00e676;
+        }
+
+        .big-result.ng {
+            color: #ff1744;
+            animation: resultPop 0.4s ease-out, resultShake 0.3s ease-out 0.4s 3;
+        }
+
+        @keyframes resultPop {
+            0% {
+                transform: translate(-50%, -50%) scale(0.3);
+                opacity: 0;
+            }
+            60% {
+                transform: translate(-50%, -50%) scale(1.1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes resultShake {
+            0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+            25% { transform: translate(-50%, -50%) rotate(-5deg); }
+            75% { transform: translate(-50%, -50%) rotate(5deg); }
         }
 
         .scan-frame {
@@ -280,16 +314,12 @@
         }
 
         .flash-success {
-            animation: flashGreen 0.5s ease-out;
+            animation: flashGreen 0.3s ease-out;
         }
 
         @keyframes flashGreen {
-            0% {
-                background: rgba(0, 230, 118, 0.6);
-            }
-            100% {
-                background: transparent;
-            }
+            0% { background: rgba(0, 230, 118, 0.6); }
+            100% { background: transparent; }
         }
 
         .flash-error {
@@ -297,12 +327,8 @@
         }
 
         @keyframes flashRed {
-            0%, 100% {
-                background: transparent;
-            }
-            50% {
-                background: rgba(255, 0, 0, 0.8);
-            }
+            0%, 100% { background: transparent; }
+            50% { background: rgba(255, 0, 0, 0.8); }
         }
     </style>
 </head>
@@ -319,6 +345,7 @@
 
     <div class="camera-container" id="camera-container">
         <video id="video" autoplay playsinline muted></video>
+        <div class="big-result" id="big-result"></div>
         <div class="scan-frame">
             <div class="corner corner-tl"></div>
             <div class="corner corner-tr"></div>
@@ -352,6 +379,7 @@
 
         const video = document.getElementById('video');
         const cameraContainer = document.getElementById('camera-container');
+        const bigResult = document.getElementById('big-result');
         const statusText = document.getElementById('status-text');
         const infoMaterial = document.getElementById('info-material');
         const infoVibrator = document.getElementById('info-vibrator');
@@ -394,15 +422,15 @@
             }
         }
 
-        // 设置状态文字样式
-        function setStatus(text, type) {
-            statusText.textContent = text;
-            statusText.classList.remove('success', 'error');
-            if (type === 'success') {
-                statusText.classList.add('success');
-            } else if (type === 'error') {
-                statusText.classList.add('error');
-            }
+        // 显示超大结果文字
+        function showBigResult(text, type) {
+            bigResult.textContent = text;
+            bigResult.className = 'big-result ' + type + ' show';
+        }
+
+        function hideBigResult() {
+            bigResult.className = 'big-result';
+            bigResult.textContent = '';
         }
 
         // ============ 图像旋转 ============
@@ -636,11 +664,11 @@
             if (currentStep === 1) {
                 materialCode = extractCode(data);
                 infoMaterial.textContent = materialCode;
-                setStatus('✅ 已记录', 'success');
+                statusText.textContent = '✅ 物料码已记录';
                 vibrate(30);
 
                 cameraContainer.classList.add('flash-success');
-                setTimeout(() => cameraContainer.classList.remove('flash-success'), 500);
+                setTimeout(() => cameraContainer.classList.remove('flash-success'), 300);
 
                 currentStep = 2;
                 scanLocked = true;
@@ -648,9 +676,9 @@
 
                 unlockTimer = setTimeout(() => {
                     scanLocked = false;
-                    setStatus('对准振动盘', '');
+                    statusText.textContent = '对准振动盘码';
                     unlockTimer = null;
-                }, 500);
+                }, 400);
 
             } else if (currentStep === 2) {
                 vibratorCode = data;
@@ -658,18 +686,22 @@
                 scanLocked = true;
 
                 if (materialCode === vibratorCode) {
-                    // 匹配成功 - 绿色大字 OK
-                    setStatus('OK', 'success');
+                    // ✅ 匹配成功 - 半屏绿色 OK
+                    statusText.textContent = '✅ 匹配成功！';
+                    showBigResult('OK', 'ok');
                     vibrate(50);
                     cameraContainer.classList.add('flash-success');
-                    setTimeout(() => cameraContainer.classList.remove('flash-success'), 500);
+                    setTimeout(() => cameraContainer.classList.remove('flash-success'), 300);
 
                     setTimeout(() => {
+                        hideBigResult();
                         resetForNext();
                     }, 800);
+
                 } else {
-                    // 不匹配 - 红色大字 NG + 震动 + 全屏闪红
-                    setStatus('NG', 'error');
+                    // ❌ 不匹配 - 半屏红色 NG
+                    statusText.textContent = '❌ 不匹配！';
+                    showBigResult('NG', 'ng');
                     vibrate(500);
                     cameraContainer.classList.add('flash-error');
 
@@ -678,6 +710,7 @@
 
                     setTimeout(() => {
                         cameraContainer.classList.remove('flash-error');
+                        hideBigResult();
                         resetForNext();
                     }, 3000);
                 }
@@ -701,7 +734,8 @@
 
             infoMaterial.textContent = '等待扫描';
             infoVibrator.textContent = '等待扫描';
-            setStatus('对准物料码', '');
+            statusText.textContent = '对准物料码';
+            hideBigResult();
             updateDots();
         }
 
@@ -709,7 +743,7 @@
             stopCamera();
             isRunning = false;
             resetForNext();
-            setStatus('准备就绪', '');
+            statusText.textContent = '准备就绪';
             btnStart.textContent = '▶ 开始扫描';
             btnStart.style.opacity = '1';
             zoomHint.style.opacity = '1';
@@ -732,7 +766,7 @@
 
             const ok = await startCamera();
             if (!ok) {
-                setStatus('摄像头不可用', 'error');
+                statusText.textContent = '摄像头不可用';
                 return;
             }
 
@@ -742,7 +776,7 @@
 
             btnStart.textContent = '⏺ 扫描中';
             btnStart.style.opacity = '0.7';
-            setStatus('对准物料码', '');
+            statusText.textContent = '对准物料码';
         });
 
         btnReset.addEventListener('click', () => {
