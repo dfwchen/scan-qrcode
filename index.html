@@ -277,6 +277,11 @@
             word-break: break-all;
             font-size: 30px;
             font-weight: 700;
+            transition: color 0.3s;
+        }
+
+        .info-value.scanned {
+            color: #cc8800;
         }
 
         .btn-row {
@@ -434,6 +439,18 @@
         function hideBigResult() {
             bigResult.className = 'big-result';
             bigResult.textContent = '';
+        }
+
+        // 设置扫描结果文字（深黄色）
+        function setScannedValue(element, value) {
+            element.textContent = value;
+            element.classList.add('scanned');
+        }
+
+        // 重置文字（白色）
+        function resetValue(element, text) {
+            element.textContent = text;
+            element.classList.remove('scanned');
         }
 
         // ============ 图像旋转 ============
@@ -666,7 +683,7 @@
         function handleScanSuccess(data) {
             if (currentStep === 1) {
                 materialCode = extractCode(data);
-                infoMaterial.textContent = materialCode;
+                setScannedValue(infoMaterial, materialCode);
                 statusText.textContent = '✅ 物料码已记录';
                 vibrate(30);
 
@@ -677,7 +694,6 @@
                 scanLocked = true;
                 updateDots();
 
-                // 5秒后解锁扫描振动盘
                 unlockTimer = setTimeout(() => {
                     scanLocked = false;
                     statusText.textContent = '对准振动盘码';
@@ -686,7 +702,7 @@
 
             } else if (currentStep === 2) {
                 vibratorCode = data;
-                infoVibrator.textContent = vibratorCode;
+                setScannedValue(infoVibrator, vibratorCode);
                 scanLocked = true;
 
                 if (materialCode === vibratorCode) {
@@ -696,7 +712,6 @@
                     cameraContainer.classList.add('flash-success');
                     setTimeout(() => cameraContainer.classList.remove('flash-success'), 300);
 
-                    // 5秒后重置继续
                     setTimeout(() => {
                         hideBigResult();
                         resetForNext();
@@ -711,7 +726,6 @@
                     dot2.classList.add('done');
                     dot2.classList.remove('active');
 
-                    // 5秒后重置
                     setTimeout(() => {
                         cameraContainer.classList.remove('flash-error');
                         hideBigResult();
@@ -736,8 +750,8 @@
                 unlockTimer = null;
             }
 
-            infoMaterial.textContent = '等待扫描';
-            infoVibrator.textContent = '等待扫描';
+            resetValue(infoMaterial, '等待扫描');
+            resetValue(infoVibrator, '等待扫描');
             statusText.textContent = '对准物料码';
             hideBigResult();
             updateDots();
